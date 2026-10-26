@@ -1,0 +1,173 @@
+package com.moviecatalog.gateway.graphql
+
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.core.Ordered
+import org.springframework.core.annotation.Order
+import org.springframework.graphql.server.WebGraphQlHandler
+import org.springframework.graphql.server.WebGraphQlRequest
+import org.springframework.http.HttpCookie
+import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
+import org.springframework.stereotype.Component
+import org.springframework.util.LinkedMultiValueMap
+import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.multipart.MaxUploadSizeExceededException
+import org.springframework.web.multipart.MultipartFile
+import org.springframework.web.multipart.MultipartHttpServletRequest
+import org.springframework.web.servlet.function.RequestPredicates
+import org.springframework.web.servlet.function.RouterFunction
+import org.springframework.web.servlet.function.RouterFunctions
+import org.springframework.web.servlet.function.ServerRequest
+import org.springframework.web.servlet.function.ServerResponse
+import tools.jackson.core.JacksonException
+import tools.jackson.databind.json.JsonMapper
+import java.net.InetSocketAddress
+import java.net.URI
+import java.time.Duration
+import java.util.UUID
+
+/**
+ * Routes multipart POSTs to /graphql to [GraphQlMultipartHandler]. Spring for GraphQL serves the
+ * same path with its own router function, which answers any non-JSON body with 415, so this route
+ * is ordered ahead of it and matches only multipart/form-data. JSON requests still go to Spring's.
+ */
+@Configuration
+class GraphQlMultipartConfiguration {
+    @Bean
+    @Order(Ordered.HIGHEST_PRECEDENCE)
+    fun graphQlMultipartRoute(handler: GraphQlMultipartHandler): RouterFunction<ServerResponse> =
+        RouterFunctions.route()
+            .POST("/graphql", RequestPredicates.contentType(MediaType.MULTIPART_FORM_DATA), handler::handle)
+            .build()
+}
+
+/**
+ * Accepts GraphQL operations sent as multipart/form-data under the GraphQL multipart request spec
+ * (https://github.com/jaydenseric/graphql-multipart-request-spec), which Spring for GraphQL does not
+ * support itself. The request has three kinds of part:
+ *
+ * - `operations`: the usual JSON body, with `null` where each file goes;
+ * - `map`: which file part fills which variable, for example `{"0": ["variables.file"]}`;
+ * - one part per file, named by the keys of `map`.
+ *
+ * This handler only puts the files into the variables. The operation then runs through Spring's
+ * normal [WebGraphQlHandler], so schema validation, the `Upload` scalar, interceptors and error
+ * resolvers behave exactly as they do for JSON requests.
+ */
+@Component
+class GraphQlMultipartHandler(
+    private val graphQlHandler: WebGraphQlHandler,
+    private val jsonMapper: JsonMapper,
+) {
+    fun handle(request: ServerRequest): ServerResponse {
+        // DispatcherServlet has already parsed the multipart body before routing.
+        val multipart = request.servletRequest() as? MultipartHttpServletRequest
+            ?: return badRequest("Expected a multipart/form-data request")
+        return try {
+            val body = parseObject(multipart.getParameter("operations"), "operations")
+            @Suppress("UNCHECKED_CAST")
+            val variables = (body["variables"] as? MutableMap<String, Any?>) ?: mutableMapOf<String, Any?>().also { body["variables"] = it }
+
+            for ((part, paths) in parseObject(multipart.getParameter("map"), "map")) {
+                val file = multipart.getFile(part) ?: throw MultipartRequestException("The map refers to file part '$part', which was not sent")
+                val pathList = paths as? List<*> ?: throw MultipartRequestException("The map entry for '$part' must be a list of paths")
+                pathList.forEach { insertFile(variables, it as? String ?: throw MultipartRequestException("Map paths must be strings"), file) }
+            }
+            execute(multipart, body)
+        } catch (e: MultipartRequestException) {
+            badRequest(e.message)
+        }
+    }
+
+    private fun execute(request: MultipartHttpServletRequest, body: Map<String, Any?>): ServerResponse {
+        val graphQlRequest = WebGraphQlRequest(
+            URI.create(request.requestURL.toString()),
+            HttpHeaders().apply { request.headerNames.asIterator().forEach { name -> addAll(name, request.getHeaders(name).toList()) } },
+            LinkedMultiValueMap<String, HttpCookie>(),
+            request.remoteAddr?.let { InetSocketAddress(it, request.remotePort) },
+            mutableMapOf<String, Any>(),
+            // Parsed JSON can hold nulls, which Spring's own JSON endpoint passes through the same way.
+            @Suppress("UNCHECKED_CAST") (body as Map<String, Any>),
+            UUID.randomUUID().toString(),
+            request.locale,
+        )
+        val response = graphQlHandler.handleRequest(graphQlRequest).block(TIMEOUT)
+            ?: throw IllegalStateException("No GraphQL response")
+        return ServerResponse.ok()
+            .headers { it.addAll(response.responseHeaders) }
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(response.toMap())
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun parseObject(json: String?, part: String): MutableMap<String, Any?> {
+        if (json == null) throw MultipartRequestException("The '$part' part is required")
+        return try {
+            jsonMapper.readValue(json, MutableMap::class.java) as MutableMap<String, Any?>
+        } catch (e: JacksonException) {
+            throw MultipartRequestException("The '$part' part must be a JSON object")
+        }
+    }
+
+    /**
+     * Places [file] at a path such as `variables.file` or `variables.files.0`. Every step before the
+     * last must already exist in the operations JSON, as the spec requires.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun insertFile(variables: MutableMap<String, Any?>, path: String, file: MultipartFile) {
+        val segments = path.split(".")
+        if (segments.size < 2 || segments.first() != "variables") {
+            throw MultipartRequestException("Map path '$path' must start with 'variables.'")
+        }
+        var container: Any? = variables
+        for (segment in segments.drop(1).dropLast(1)) {
+            container = when (container) {
+                is Map<*, *> -> container[segment]
+                is List<*> -> segment.toIntOrNull()?.let { container.getOrNull(it) }
+                else -> null
+            } ?: throw MultipartRequestException("Map path '$path' does not match the operation's variables")
+        }
+        val last = segments.last()
+        when (container) {
+            is MutableMap<*, *> -> {
+                if (!container.containsKey(last)) throw MultipartRequestException("Map path '$path' does not match the operation's variables")
+                (container as MutableMap<String, Any?>)[last] = file
+            }
+            is MutableList<*> -> {
+                val index = last.toIntOrNull()?.takeIf { it in container.indices }
+                    ?: throw MultipartRequestException("Map path '$path' does not match the operation's variables")
+                (container as MutableList<Any?>)[index] = file
+            }
+            else -> throw MultipartRequestException("Map path '$path' does not match the operation's variables")
+        }
+    }
+
+    private fun badRequest(message: String?): ServerResponse =
+        ServerResponse.badRequest().contentType(MediaType.APPLICATION_JSON).body(errorBody(ErrorCode.BAD_REQUEST, message))
+
+    class MultipartRequestException(message: String) : RuntimeException(message)
+
+    companion object {
+        private val TIMEOUT: Duration = Duration.ofSeconds(60)
+
+        fun errorBody(code: ErrorCode, message: String?): Map<String, Any?> =
+            mapOf("errors" to listOf(mapOf("message" to message, "extensions" to mapOf("code" to code.name))))
+    }
+}
+
+/**
+ * The servlet container rejects a request over spring.servlet.multipart limits while parsing it,
+ * before any handler runs, so this has to be global advice rather than a handler method.
+ */
+@RestControllerAdvice
+class UploadLimitAdvice {
+    @ExceptionHandler(MaxUploadSizeExceededException::class)
+    fun tooLarge(): ResponseEntity<Map<String, Any?>> =
+        ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(GraphQlMultipartHandler.errorBody(ErrorCode.RESOURCE_EXHAUSTED, "The image must be at most 5 MB"))
+}

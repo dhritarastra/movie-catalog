@@ -1,6 +1,18 @@
 spring:
   application:
     name: gateway
+  grpc:
+    client:
+      channel:
+        catalog:
+          target: ${CATALOG_GRPC_TARGET:localhost:9091}
+        media:
+          target: ${MEDIA_GRPC_TARGET:localhost:9092}
+  servlet:
+    multipart:
+      # 5 MiB per file (Spring's MB is 1024 * 1024), plus room for the other multipart parts.
+      max-file-size: 5MB
+      max-request-size: 6MB
 server:
   port: ${GATEWAY_HTTP_PORT:8080}
 management:
@@ -8,3 +20,9 @@ management:
     web:
       exposure:
         include: health
+
+gateway:
+  max-upload-bytes: 5242880 # 5 MiB, the same limit media-service enforces
+  catalog-deadline: 2s
+  media-upload-deadline: 30s
+  media-download-deadline: 30s

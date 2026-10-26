@@ -16,6 +16,7 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.graphql:spring-graphql-test")
+    testImplementation("io.grpc:grpc-inprocess")
     testImplementation(libs.mockk)
     testImplementation(libs.springmockk)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

@@ -1,0 +1,54 @@
+package com.moviecatalog.gateway.movie
+
+import com.google.protobuf.Timestamp
+import java.time.Instant
+import com.moviecatalog.catalog.v1.Movie as MovieProto
+
+/**
+ * The GraphQL `Movie` as data. Protobuf getters return "" or 0 for unset optional fields,
+ * so this view turns them back into nulls before GraphQL sees them.
+ */
+data class MovieView(
+    val id: String,
+    val title: String,
+    val synopsis: String?,
+    val releaseDate: String?,
+    val runtimeMinutes: Int?,
+    val genres: List<String>,
+    val artworkId: String?,
+    val version: Int,
+    val createdAt: String,
+    val updatedAt: String,
+) {
+    companion object {
+        fun of(movie: MovieProto) =
+            MovieView(
+                id = movie.id,
+                title = movie.title,
+                synopsis = if (movie.hasSynopsis()) movie.synopsis else null,
+                releaseDate = if (movie.hasReleaseDate()) movie.releaseDate else null,
+                runtimeMinutes = if (movie.hasRuntimeMinutes()) movie.runtimeMinutes else null,
+                genres = movie.genresList,
+                artworkId = if (movie.hasArtworkId()) movie.artworkId else null,
+                version = movie.version,
+                createdAt = movie.createdAt.toIsoString(),
+                updatedAt = movie.updatedAt.toIsoString(),
+            )
+    }
+}
+
+data class MoviePageView(val items: List<MovieView>, val totalCount: Int, val offset: Int, val limit: Int)
+
+/** `PageInput` as received. An explicit null limit means the default, like an omitted one (DECISIONS D7). */
+data class PageInput(val offset: Int?, val limit: Int?)
+
+/** `MovieInput` as received; the catalog validates and normalises it. */
+data class MovieInput(
+    val title: String,
+    val synopsis: String?,
+    val releaseDate: String?,
+    val runtimeMinutes: Int?,
+    val genres: List<String>,
+)
+
+private fun Timestamp.toIsoString(): String = Instant.ofEpochSecond(seconds, nanos.toLong()).toString()
