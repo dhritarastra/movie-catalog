@@ -1,0 +1,5 @@
+# Keep the Gradle wrapper scripts runnable on their platforms regardless of local Git settings.
+gradlew      text eol=lf
+*.bat        text eol=crlf
+*.sh         text eol=lf
+*.jar        binary
