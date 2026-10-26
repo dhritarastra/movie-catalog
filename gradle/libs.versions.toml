@@ -1,0 +1,24 @@
+# Spring Boot's BOM manages most library versions (Kotlin, Spring GraphQL, Spring gRPC,
+# grpc-java, Testcontainers, Flyway). Only versions outside that BOM, or ones that must
+# match it in a non-dependency context (Gradle plugins, protoc artifacts), are pinned here.
+# See docs/DECISIONS.md for how this set was chosen.
+
+[versions]
+spring-boot = "4.1.2"
+kotlin = "2.3.21"            # matches kotlin.version managed by Spring Boot 4.1.2
+protobuf-plugin = "0.10.0"
+protoc = "4.36.2"            # matches protobuf-java managed by Spring gRPC 1.1.2
+grpc-java = "1.84.1"         # matches grpc-java.version managed by Spring Boot 4.1.2
+mockk = "1.14.11"
+springmockk = "5.0.1"
+
+[libraries]
+spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+springmockk = { module = "com.ninja-squad:springmockk", version.ref = "springmockk" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
