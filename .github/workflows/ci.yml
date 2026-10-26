@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend build and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Gradle runs on this JDK; the build's Java 21 toolchain then matches it.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # Caches dependencies and validates the committed Gradle wrapper.
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Testcontainers uses the runner's Docker daemon for the Postgres-backed tests.
+      - run: ./gradlew build --console=plain
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-test-reports
+          path: "**/build/reports/tests/"
