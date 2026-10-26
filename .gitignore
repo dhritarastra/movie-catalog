@@ -1,0 +1,28 @@
+# Gradle / JVM
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+*.class
+*.log
+hs_err_pid*
+
+# Kotlin
+.kotlin/
+
+# Node / web
+node_modules/
+web/.svelte-kit/
+web/build/
+web/coverage/
+web/test-results/
+web/playwright-report/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Local env and runtime data
+.env
+media-data/
