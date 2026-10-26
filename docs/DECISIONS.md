@@ -38,8 +38,10 @@ than the newest 2.4.x.
 `grpc.health.v1.Health` service on their gRPC port. The services get no extra HTTP port.
 The gateway is an HTTP application already, so it uses Actuator's `/actuator/health`.
 
-**Status.** The gRPC health service is in place and tested. The `grpc_health_probe` binary,
-pinned by version and checksum, will be added to each image when the Dockerfiles are written.
+**Status.** The gRPC health service is in place and tested. `services/Dockerfile` installs
+`grpc_health_probe` v0.4.59 in each service image, checked against the SHA-256 checksums
+published with that release, and Compose starts each service only once its dependencies
+report healthy.
 
 **Why.**
 - The probe exercises the port that actually serves traffic.
@@ -64,8 +66,10 @@ register `MovieService` and `MediaService` classes whose methods still return
 
 **Why.**
 - The gateway is a blocking Spring MVC application, so blocking client stubs fit it.
-- The streaming calls (artwork upload and download) will use `StreamObserver` on the server
-  and the async stub on the client when they are implemented.
+- Streaming uses `StreamObserver` on the server. For uploads the gateway uses the async stub
+  and writes each chunk from gRPC's on-ready callback, so a slow media service applies
+  backpressure instead of the gateway buffering the file. Downloads read the blocking stub's
+  iterator straight into the HTTP response.
 - One set of generated code serves client and server, and it keeps the build to a single
   protoc plugin.
 
@@ -131,3 +135,67 @@ error rather than a hidden default.
 
 **Not affected.** Search is not paginated, so the catalog still caps its `limit`. A shorter
 result list cannot cause records to be skipped.
+
+## D8. Plain SQL through JdbcClient, not JPA
+
+**Decision.** Catalog and media read and write with Spring's `JdbcClient` and hand-written SQL.
+Rows are mapped to Kotlin data classes by small functions next to the queries.
+
+**Why.** The schema is small and leans on Postgres features: `text[]` genres, `SELECT ... FOR UPDATE`
+for the artwork version check, and later `UNIQUE NULLS NOT DISTINCT`. With plain SQL every query
+the service runs is visible in one file, there is no session or lazy loading to reason about, and
+the locking is explicit. The cost is writing the row mapping by hand.
+
+## D9. GraphQL multipart uploads through a router function
+
+**Decision.** `GraphQlMultipartHandler` implements the GraphQL multipart request spec. It is
+registered as a router function for `POST /graphql` with `multipart/form-data`, ordered ahead of
+Spring for GraphQL's own route, puts each file into the operation's variables, and then runs the
+operation through Spring's `WebGraphQlHandler`.
+
+**Why.** The assessment asks for frontend-to-backend communication over GraphQL, so the upload is
+a GraphQL mutation rather than a separate REST endpoint. Running it through `WebGraphQlHandler`
+means the `Upload` scalar, schema validation and error resolvers behave exactly as for JSON.
+
+**Finding.** A plain `@PostMapping("/graphql")` never runs: Spring for GraphQL's router function
+matches the path first and answers any non-JSON body with 415. Ordering a narrower router function
+ahead of it fixes that. Batched operations (a JSON array in `operations`) are not supported.
+
+## D10. What upload progress means
+
+The browser's progress bar measures bytes sent to the server it is talking to. Behind nginx that
+is the whole story only up to nginx: nginx receives the full request before passing it on, and
+Spring writes multipart files to temporary storage before the resolver runs. So the UI treats
+"100% sent" as the start of **processing** (forwarding, validation, storage and attaching), not as
+success, and only reports success when the GraphQL response confirms it. Cancel is offered only
+while bytes are still being sent.
+
+The 5 MiB limit is enforced at every layer, each answering in the same JSON error shape: the
+browser before sending, nginx (`client_max_body_size 6m`, leaving room for the other parts),
+Spring's multipart limits, the gateway, and media as chunks arrive.
+
+## D11. Artwork storage
+
+**Decision.** Media stores each artwork's original and a 400px-wide thumbnail on a volume, under
+`<storage-dir>/<artwork id>/`, with metadata in its own database. Files are written to a temporary
+folder first and moved into place only after validation; the database row is written last.
+
+**Why.** A row never points at missing files, and a half-written upload is never served. Each
+upload gets a new ID, so image URLs never change content and can be cached for a year.
+
+**Limitations.** Files whose deletion fails are left behind and logged; there is no clean-up job.
+JPEGs in CMYK colour cannot be decoded by the JDK's image library and are rejected as corrupt.
+
+## D12. The web app
+
+**Decision.** SvelteKit 3 with Svelte 5, built as a static single-page app (`adapter-static` with an
+`index.html` fallback) and served by nginx. Pages fetch their data in the component rather than in
+SvelteKit `load` functions. GraphQL types are generated from the gateway's schema and committed.
+
+**Why.**
+- Movie IDs are only known at runtime, so nothing can be prerendered.
+- Fetching in the component lets each page show its own loading skeleton, empty state and
+  error with Retry, and abort a request when the user moves on, so a slow earlier response
+  never overwrites newer data.
+- Committing the generated types keeps the Docker build independent of the backend schema file;
+  CI regenerates them and fails if they differ.
