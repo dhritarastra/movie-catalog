@@ -1,0 +1,129 @@
+# Draft contract between the web app and the gateway (docs/PLAN.md §5).
+# Calendar dates are ISO-8601 strings (yyyy-MM-dd); timestamps are ISO-8601 instants.
+# Updates replace every editable field; `version` guards against overwriting a newer edit.
+
+scalar Upload
+
+type Query {
+  movies(page: PageInput): MoviePage!
+  movie(id: ID!): Movie
+  people(page: PageInput): PersonPage!
+  person(id: ID!): Person
+  search(query: String!, limit: Int = 10): [SearchResult!]!
+}
+
+type Mutation {
+  # Create and update share one input type; update replaces all editable fields.
+  createMovie(input: MovieInput!): Movie!
+  updateMovie(id: ID!, version: Int!, input: MovieInput!): Movie!
+  deleteMovie(id: ID!, version: Int!): ID!
+  uploadArtwork(movieId: ID!, version: Int!, file: Upload!): Movie!
+  removeArtwork(movieId: ID!, version: Int!): Movie!
+
+  createPerson(input: PersonInput!): Person!
+  updatePerson(id: ID!, version: Int!, input: PersonInput!): Person!
+  deletePerson(id: ID!, version: Int!): ID!
+
+  addCredit(input: AddCreditInput!): Credit!
+  updateCredit(id: ID!, input: UpdateCreditInput!): Credit!
+  removeCredit(id: ID!): ID!
+}
+
+type Movie {
+  id: ID!
+  title: String!
+  synopsis: String
+  releaseDate: String
+  runtimeMinutes: Int
+  genres: [String!]!
+  "Null when the movie has no artwork; the UI shows a placeholder."
+  artworkUrl(variant: ArtworkVariant = FULL): String
+  version: Int!
+  cast: [Credit!]!
+  creators: [Credit!]!
+  createdAt: String!
+  updatedAt: String!
+}
+
+enum ArtworkVariant {
+  FULL
+  THUMBNAIL
+}
+
+type Person {
+  id: ID!
+  name: String!
+  bio: String
+  birthDate: String
+  version: Int!
+  "Every credit for this person, across cast and creator roles."
+  credits: [Credit!]!
+  createdAt: String!
+  updatedAt: String!
+}
+
+enum CreditType {
+  CAST
+  DIRECTOR
+  WRITER
+  PRODUCER
+}
+
+type Credit {
+  id: ID!
+  type: CreditType!
+  "Only set for cast credits."
+  characterName: String
+  billingOrder: Int!
+  movie: Movie!
+  person: Person!
+}
+
+union SearchResult = Movie | Person
+
+input PageInput {
+  offset: Int = 0
+  limit: Int = 20
+}
+
+type MoviePage {
+  items: [Movie!]!
+  totalCount: Int!
+  offset: Int!
+  limit: Int!
+}
+
+type PersonPage {
+  items: [Person!]!
+  totalCount: Int!
+  offset: Int!
+  limit: Int!
+}
+
+input MovieInput {
+  title: String!
+  synopsis: String
+  releaseDate: String
+  runtimeMinutes: Int
+  genres: [String!]!
+}
+
+input PersonInput {
+  name: String!
+  bio: String
+  birthDate: String
+}
+
+input AddCreditInput {
+  movieId: ID!
+  personId: ID!
+  type: CreditType!
+  characterName: String
+  billingOrder: Int!
+}
+
+input UpdateCreditInput {
+  type: CreditType!
+  characterName: String
+  billingOrder: Int!
+}

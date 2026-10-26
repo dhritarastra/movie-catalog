@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: catalog-service
+  datasource:
+    url: ${CATALOG_DB_URL:jdbc:postgresql://localhost:5432/catalog}
+    username: ${CATALOG_DB_USER:catalog}
+    password: ${CATALOG_DB_PASSWORD:catalog}
+  grpc:
+    server:
+      port: ${CATALOG_GRPC_PORT:9091}
+      health:
+        schedule:
+          # Refresh the gRPC health status from application health (database included).
+          delay: 2s
+          period: 5s

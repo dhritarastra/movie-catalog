@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: media-service
+  datasource:
+    url: ${MEDIA_DB_URL:jdbc:postgresql://localhost:5432/media}
+    username: ${MEDIA_DB_USER:media}
+    password: ${MEDIA_DB_PASSWORD:media}
+  grpc:
+    server:
+      port: ${MEDIA_GRPC_PORT:9092}
+      health:
+        schedule:
+          # Refresh the gRPC health status from application health (database included).
+          delay: 2s
+          period: 5s
