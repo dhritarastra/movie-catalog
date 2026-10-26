@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+option java_multiple_files = true;
+option java_package = "com.moviecatalog.catalog.v1";
+
+enum CreditType {
+  CREDIT_TYPE_UNSPECIFIED = 0; // rejected as INVALID_ARGUMENT
+  CREDIT_TYPE_CAST = 1;
+  CREDIT_TYPE_DIRECTOR = 2;
+  CREDIT_TYPE_WRITER = 3;
+  CREDIT_TYPE_PRODUCER = 4;
+}
+
+// Links a person to a movie in one role. Creator credits have no character name.
+// Credits are last-write-wins (no version), as documented in docs/PLAN.md.
+message Credit {
+  string id = 1;
+  string movie_id = 2;
+  string person_id = 3;
+  CreditType type = 4;
+  optional string character_name = 5;
+  int32 billing_order = 6;
+}
+
+message CreditList {
+  repeated Credit credits = 1;
+}
+
+service CreditService {
+  rpc AddCredit(AddCreditRequest) returns (Credit);
+  rpc UpdateCredit(UpdateCreditRequest) returns (Credit);
+  rpc RemoveCredit(RemoveCreditRequest) returns (RemoveCreditResponse);
+  // Batch lookups that back the gateway's GraphQL batch mappings (avoids N+1 calls).
+  rpc GetCreditsByMovieIds(GetCreditsByMovieIdsRequest) returns (CreditsByKeyResponse);
+  rpc GetCreditsByPersonIds(GetCreditsByPersonIdsRequest) returns (CreditsByKeyResponse);
+}
+
+message AddCreditRequest {
+  string movie_id = 1;
+  string person_id = 2;
+  CreditType type = 3;
+  optional string character_name = 4;
+  int32 billing_order = 5;
+}
+
+// Replaces the credit's role, character name and billing order.
+message UpdateCreditRequest {
+  string id = 1;
+  CreditType type = 2;
+  optional string character_name = 3;
+  int32 billing_order = 4;
+}
+
+message RemoveCreditRequest {
+  string id = 1;
+}
+
+message RemoveCreditResponse {
+  string id = 1;
+}
+
+message GetCreditsByMovieIdsRequest {
+  repeated string movie_ids = 1;
+}
+
+message GetCreditsByPersonIdsRequest {
+  repeated string person_ids = 1;
+}
+
+// Keyed by the requested movie or person ID. Every requested ID has an entry,
+// with an empty list when it has no credits or does not exist.
+message CreditsByKeyResponse {
+  map<string, CreditList> credits = 1;
+}

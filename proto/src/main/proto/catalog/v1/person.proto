@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+import "catalog/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "com.moviecatalog.catalog.v1";
+
+// A cast member or creator. Roles live on Credit, so one person can be both.
+message Person {
+  string id = 1;
+  string name = 2;
+  optional string bio = 3;
+  optional string birth_date = 4;
+  int32 version = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// Editable fields. Update replaces every editable field with them.
+message PersonFields {
+  string name = 1;
+  optional string bio = 2;
+  optional string birth_date = 3;
+}
+
+service PersonService {
+  rpc CreatePerson(CreatePersonRequest) returns (Person);
+  rpc GetPerson(GetPersonRequest) returns (Person);
+  rpc GetPeopleByIds(GetPeopleByIdsRequest) returns (GetPeopleByIdsResponse);
+  rpc ListPeople(ListPeopleRequest) returns (ListPeopleResponse);
+  rpc UpdatePerson(UpdatePersonRequest) returns (Person);
+  // Fails with FAILED_PRECONDITION while the person still has credits.
+  rpc DeletePerson(DeletePersonRequest) returns (DeletePersonResponse);
+}
+
+message CreatePersonRequest {
+  PersonFields fields = 1;
+}
+
+message GetPersonRequest {
+  string id = 1;
+}
+
+message GetPeopleByIdsRequest {
+  repeated string ids = 1;
+}
+
+// Keyed by person ID. IDs that do not exist are absent from the map.
+message GetPeopleByIdsResponse {
+  map<string, Person> people = 1;
+}
+
+message ListPeopleRequest {
+  PageRequest page = 1;
+}
+
+message ListPeopleResponse {
+  repeated Person people = 1;
+  int32 total_count = 2;
+}
+
+message UpdatePersonRequest {
+  string id = 1;
+  int32 expected_version = 2;
+  PersonFields fields = 3;
+}
+
+message DeletePersonRequest {
+  string id = 1;
+  int32 expected_version = 2;
+}
+
+message DeletePersonResponse {
+  string id = 1;
+}

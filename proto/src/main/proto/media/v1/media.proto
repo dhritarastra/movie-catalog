@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package media.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "com.moviecatalog.media.v1";
+
+service MediaService {
+  // Client stream: exactly one metadata message first, then one or more chunks
+  // (64 KiB each from the gateway). Anything else is INVALID_ARGUMENT; exceeding the
+  // size limit is RESOURCE_EXHAUSTED.
+  rpc UploadArtwork(stream UploadArtworkRequest) returns (Artwork);
+  // Server stream: one metadata message, then the image bytes in chunks.
+  rpc DownloadArtwork(DownloadArtworkRequest) returns (stream DownloadArtworkResponse);
+  // Safe to repeat: deleting an already-missing ID succeeds with existed = false.
+  rpc DeleteArtwork(DeleteArtworkRequest) returns (DeleteArtworkResponse);
+}
+
+enum ArtworkVariant {
+  ARTWORK_VARIANT_UNSPECIFIED = 0; // treated as FULL
+  ARTWORK_VARIANT_FULL = 1;
+  ARTWORK_VARIANT_THUMBNAIL = 2;
+}
+
+message Artwork {
+  string id = 1;
+  string content_type = 2;
+  int64 size_bytes = 3;
+  int32 width = 4;
+  int32 height = 5;
+  string sha256 = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message UploadMetadata {
+  // What the client claims. Media checks the actual bytes and does not trust these.
+  string declared_content_type = 1;
+  int64 declared_size_bytes = 2;
+  string original_filename = 3;
+}
+
+message UploadArtworkRequest {
+  oneof payload {
+    UploadMetadata metadata = 1;
+    bytes chunk = 2;
+  }
+}
+
+message DownloadArtworkRequest {
+  string id = 1;
+  ArtworkVariant variant = 2;
+}
+
+message DownloadMetadata {
+  string content_type = 1;
+  int64 size_bytes = 2;
+  string sha256 = 3; // used as the HTTP ETag
+}
+
+message DownloadArtworkResponse {
+  oneof payload {
+    DownloadMetadata metadata = 1;
+    bytes chunk = 2;
+  }
+}
+
+message DeleteArtworkRequest {
+  string id = 1;
+}
+
+message DeleteArtworkResponse {
+  bool existed = 1;
+}

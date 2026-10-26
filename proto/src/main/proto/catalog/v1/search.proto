@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+import "catalog/v1/movie.proto";
+import "catalog/v1/person.proto";
+
+option java_multiple_files = true;
+option java_package = "com.moviecatalog.catalog.v1";
+
+service SearchService {
+  // Case-insensitive literal substring match on movie titles and person names.
+  rpc Search(SearchRequest) returns (SearchResponse);
+}
+
+message SearchRequest {
+  string query = 1; // trimmed; blank or over-long queries are INVALID_ARGUMENT
+  int32 limit = 2;  // capped by the catalog
+}
+
+message SearchHit {
+  oneof hit {
+    Movie movie = 1;
+    Person person = 2;
+  }
+}
+
+// Deterministic order: best match first, then by name/title and ID.
+message SearchResponse {
+  repeated SearchHit hits = 1;
+}

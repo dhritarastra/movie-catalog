@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+import "catalog/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "com.moviecatalog.catalog.v1";
+
+// IDs are UUID strings. Calendar dates are ISO-8601 strings (yyyy-MM-dd) validated by
+// the catalog. `optional` marks nullable fields so "no value" is distinguishable from "".
+message Movie {
+  string id = 1;
+  string title = 2;
+  optional string synopsis = 3;
+  optional string release_date = 4;
+  optional int32 runtime_minutes = 5;
+  repeated string genres = 6;
+  optional string artwork_id = 7;
+  int32 version = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// Editable fields. Create uses them as-is; Update replaces every editable field with them.
+// Artwork is deliberately absent: it changes only through SetArtwork / ClearArtwork.
+message MovieFields {
+  string title = 1;
+  optional string synopsis = 2;
+  optional string release_date = 3;
+  optional int32 runtime_minutes = 4;
+  repeated string genres = 5;
+}
+
+service MovieService {
+  rpc CreateMovie(CreateMovieRequest) returns (Movie);
+  rpc GetMovie(GetMovieRequest) returns (Movie);
+  rpc GetMoviesByIds(GetMoviesByIdsRequest) returns (GetMoviesByIdsResponse);
+  rpc ListMovies(ListMoviesRequest) returns (ListMoviesResponse);
+  rpc UpdateMovie(UpdateMovieRequest) returns (Movie);
+  rpc DeleteMovie(DeleteMovieRequest) returns (DeleteMovieResponse);
+  // Attach/remove artwork atomically with the version check, and return the artwork ID
+  // that was replaced in the same transaction so the gateway deletes the right file.
+  rpc SetArtwork(SetArtworkRequest) returns (ArtworkChangeResponse);
+  rpc ClearArtwork(ClearArtworkRequest) returns (ArtworkChangeResponse);
+}
+
+message CreateMovieRequest {
+  MovieFields fields = 1;
+}
+
+message GetMovieRequest {
+  string id = 1;
+}
+
+message GetMoviesByIdsRequest {
+  repeated string ids = 1;
+}
+
+// Keyed by movie ID. IDs that do not exist are absent from the map.
+message GetMoviesByIdsResponse {
+  map<string, Movie> movies = 1;
+}
+
+message ListMoviesRequest {
+  PageRequest page = 1;
+}
+
+message ListMoviesResponse {
+  repeated Movie movies = 1;
+  int32 total_count = 2;
+}
+
+message UpdateMovieRequest {
+  string id = 1;
+  int32 expected_version = 2;
+  MovieFields fields = 3;
+}
+
+message DeleteMovieRequest {
+  string id = 1;
+  int32 expected_version = 2;
+}
+
+message DeleteMovieResponse {
+  string id = 1;
+  // Artwork that was attached when the movie was deleted, for best-effort cleanup.
+  optional string artwork_id = 2;
+}
+
+message SetArtworkRequest {
+  string movie_id = 1;
+  int32 expected_version = 2;
+  string artwork_id = 3;
+}
+
+message ClearArtworkRequest {
+  string movie_id = 1;
+  int32 expected_version = 2;
+}
+
+message ArtworkChangeResponse {
+  Movie movie = 1;
+  optional string previous_artwork_id = 2;
+}
