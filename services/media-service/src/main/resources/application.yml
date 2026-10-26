@@ -17,3 +17,11 @@ spring:
           # Refresh the gRPC health status from application health (database included).
           delay: 2s
           period: 5s
+
+media:
+  # Original images and thumbnails, one folder per artwork ID.
+  storage-dir: ${MEDIA_STORAGE_DIR:./media-data}
+  max-upload-bytes: 5242880 # 5 MiB
+  max-width: 8000
+  max-height: 8000
+  thumbnail-width: 400

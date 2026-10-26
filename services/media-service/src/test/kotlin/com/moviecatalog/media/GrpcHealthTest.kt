@@ -27,6 +27,7 @@ import java.time.Duration
         "spring.grpc.server.health.schedule.delay=0s",
         "spring.grpc.server.health.schedule.period=1s",
         "spring.datasource.hikari.connection-timeout=1000",
+        "media.storage-dir=build/test-media",
     ],
 )
 @Testcontainers
