@@ -34,7 +34,7 @@ Browser -> nginx (static web, /graphql and /media proxies)
 ## Run
 
 ```bash
-cp .env.example .env    # optional: change local ports and passwords
+cp .env.example .env    # optional: change the Postgres port and passwords Compose uses
 docker compose up -d --wait
 ./gradlew build
 ```
@@ -46,6 +46,11 @@ Start the services in separate terminals:
 ./gradlew :services:media-service:bootRun
 ./gradlew :services:gateway:bootRun
 ```
+
+`bootRun` does not read `.env`; only Compose does. The services' defaults match
+`.env.example`. If you change the Postgres port or a password, export the matching variables
+before `bootRun`, for example `CATALOG_DB_URL=jdbc:postgresql://localhost:5433/catalog`.
+Each service lists its variables in `src/main/resources/application.yml`.
 
 | Component | Port |
 |---|---|
@@ -73,8 +78,8 @@ add Homebrew's plugin folder to `cliPluginsExtraDirs` in `~/.docker/config.json`
 ## Tests
 
 `./gradlew build` runs every backend test. The tests that need Postgres start their own
-database with Testcontainers, so Docker must be running. CI runs the same build on each push
-(`.github/workflows/ci.yml`).
+database with Testcontainers, so Docker must be running. CI runs the same build on pushes to
+`main` and on pull requests (`.github/workflows/ci.yml`).
 
 ## Documentation
 

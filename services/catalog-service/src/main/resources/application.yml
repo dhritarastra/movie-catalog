@@ -5,6 +5,10 @@ spring:
     url: ${CATALOG_DB_URL:jdbc:postgresql://localhost:5432/catalog}
     username: ${CATALOG_DB_USER:catalog}
     password: ${CATALOG_DB_PASSWORD:catalog}
+    hikari:
+      # Milliseconds. Fail fast when the database is unreachable, so health reports it
+      # within seconds rather than after the 30s default.
+      connection-timeout: 5000
   grpc:
     server:
       port: ${CATALOG_GRPC_PORT:9091}

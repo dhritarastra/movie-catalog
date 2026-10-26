@@ -35,9 +35,11 @@ than the newest 2.4.x.
 ## D2. Container health checks use the standard gRPC health service
 
 **Decision.** Docker checks catalog-service and media-service by calling the standard
-`grpc.health.v1.Health` service on their gRPC port, using a `grpc_health_probe` binary
-pinned by version and checksum in each image. The services get no extra HTTP port.
+`grpc.health.v1.Health` service on their gRPC port. The services get no extra HTTP port.
 The gateway is an HTTP application already, so it uses Actuator's `/actuator/health`.
+
+**Status.** The gRPC health service is in place and tested. The `grpc_health_probe` binary,
+pinned by version and checksum, will be added to each image when the Dockerfiles are written.
 
 **Why.**
 - The probe exercises the port that actually serves traffic.
@@ -62,7 +64,8 @@ register `MovieService` and `MediaService` classes whose methods still return
 
 **Why.**
 - The gateway is a blocking Spring MVC application, so blocking client stubs fit it.
-- Streaming calls use `StreamObserver` (server) and the async stub (client).
+- The streaming calls (artwork upload and download) will use `StreamObserver` on the server
+  and the async stub on the client when they are implemented.
 - One set of generated code serves client and server, and it keeps the build to a single
   protoc plugin.
 
