@@ -5,8 +5,11 @@ package catalog.v1;
 option java_multiple_files = true;
 option java_package = "com.moviecatalog.catalog.v1";
 
-// Offset pagination. The catalog caps `limit` and rejects negative values.
+// Offset pagination. Anything outside the ranges below is INVALID_ARGUMENT. Values are never
+// clamped, so the page returned is exactly the page requested and the next page starts at
+// offset + limit. A limit of 0 (also what proto3 sends when the field is unset) is invalid:
+// the gateway applies the default page size before calling the catalog.
 message PageRequest {
-  int32 offset = 1;
-  int32 limit = 2;
+  int32 offset = 1; // >= 0
+  int32 limit = 2;  // 1..100
 }

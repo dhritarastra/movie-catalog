@@ -97,6 +97,14 @@ this if that becomes a problem in the media service.
 for field masks and for telling "omitted" from "null" during input binding. The version check
 still stops one edit from silently overwriting another. See [PLAN.md](PLAN.md) §3, decision 6.
 
+**Versions start at 1.** Proto3 sends 0 for an omitted `int32`, so an omitted
+`expected_version` and an explicit 0 are indistinguishable. Starting versions at 1 and
+rejecting `expected_version < 1` as `INVALID_ARGUMENT` means a request that forgets the
+version is refused instead of being compared against a stored version. This was chosen over
+`optional int32` because it closes the same gap without a presence check in every handler.
+The `movie` and `person` tables will enforce it with `CHECK (version >= 1)` when the migrations
+are written.
+
 ## D6. One Postgres container, one database and role per service
 
 **Decision.** Compose runs a single Postgres 17 container. An init script creates `catalog`
@@ -105,3 +113,21 @@ and `media` roles and databases, and revokes the default `CONNECT` privilege fro
 **Why.** Each service owns its data. Neither can connect to the other's database, which was
 checked by attempting it with each role. One container keeps the local setup light.
 Postgres 17 also supports `UNIQUE NULLS NOT DISTINCT`, which the credit constraint needs.
+
+## D7. Pagination rejects out-of-range values instead of clamping
+
+**Decision.** `PageRequest` requires `offset >= 0` and `1 <= limit <= 100`. Anything else is
+`INVALID_ARGUMENT`, which the gateway reports as `BAD_REQUEST`. The catalog never clamps.
+The gateway applies the default page size (20, from the GraphQL schema) before calling the
+catalog, including when a client sends `limit: null`. This refines the "capped page size" in
+[PLAN.md](PLAN.md) §3, decision 9: the cap is enforced by rejecting values, not by adjusting them.
+
+**Why.** Suppose the catalog silently cut a requested limit of 500 down to 100. The gateway
+would report 500 back, and a client computing the next offset as `offset + limit` would skip
+records 100 to 499. Rejecting out-of-range values keeps the page returned identical to the
+page requested, without adding a "limit actually used" field to every list response. It also
+settles what `limit = 0` means: proto3 sends 0 when the field is unset, and that is now an
+error rather than a hidden default.
+
+**Not affected.** Search is not paginated, so the catalog still caps its `limit`. A shorter
+result list cannot cause records to be skipped.

@@ -81,6 +81,11 @@ type Credit {
 
 union SearchResult = Movie | Person
 
+"""
+Offset pagination: offset >= 0 and 1 <= limit <= 100. Other values are a BAD_REQUEST error;
+they are never silently adjusted, so the next page starts at offset + limit.
+An explicit null limit means the default of 20.
+"""
 input PageInput {
   offset: Int = 0
   limit: Int = 20

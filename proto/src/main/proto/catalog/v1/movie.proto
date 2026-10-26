@@ -10,6 +10,8 @@ option java_package = "com.moviecatalog.catalog.v1";
 
 // IDs are UUID strings. Calendar dates are ISO-8601 strings (yyyy-MM-dd) validated by
 // the catalog. `optional` marks nullable fields so "no value" is distinguishable from "".
+// Versions start at 1. Proto3 sends 0 when expected_version is omitted, so any
+// expected_version below 1 is INVALID_ARGUMENT rather than a version to compare against.
 message Movie {
   string id = 1;
   string title = 2;
@@ -18,7 +20,7 @@ message Movie {
   optional int32 runtime_minutes = 5;
   repeated string genres = 6;
   optional string artwork_id = 7;
-  int32 version = 8;
+  int32 version = 8; // starts at 1; increases by one on every change
   google.protobuf.Timestamp created_at = 9;
   google.protobuf.Timestamp updated_at = 10;
 }
@@ -74,13 +76,13 @@ message ListMoviesResponse {
 
 message UpdateMovieRequest {
   string id = 1;
-  int32 expected_version = 2;
+  int32 expected_version = 2; // >= 1
   MovieFields fields = 3;
 }
 
 message DeleteMovieRequest {
   string id = 1;
-  int32 expected_version = 2;
+  int32 expected_version = 2; // >= 1
 }
 
 message DeleteMovieResponse {
@@ -91,13 +93,13 @@ message DeleteMovieResponse {
 
 message SetArtworkRequest {
   string movie_id = 1;
-  int32 expected_version = 2;
+  int32 expected_version = 2; // >= 1
   string artwork_id = 3;
 }
 
 message ClearArtworkRequest {
   string movie_id = 1;
-  int32 expected_version = 2;
+  int32 expected_version = 2; // >= 1
 }
 
 message ArtworkChangeResponse {

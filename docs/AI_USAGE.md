@@ -8,6 +8,7 @@ with each piece of work.
 
 - **Claude Code** (Anthropic): planning, research and code generation, driven by my prompts.
 - **Astra:** a second AI agent, used to review and strengthen the plan.
+- **Codex** (OpenAI): independent review of the Day 1 scaffolding.
 
 ## Log
 
@@ -18,6 +19,7 @@ with each piece of work.
 | 26 Oct | Claude Code | Looked up current versions on Maven Central and chose a compatible set (DECISIONS.md D1) | `./gradlew build` passes on the pinned set |
 | 26 Oct | Claude Code | Generated the Gradle multi-module build, proto contracts, service skeletons, draft GraphQL schema, Compose setup and CI workflow | Build and tests pass locally. Database isolation was checked by hand with each role |
 | 26 Oct | Claude Code | Wrote `GrpcHealthTest` to prove the health-check approach (DECISIONS.md D2) | The test stops Postgres and observes `NOT_SERVING` |
+| 26 Oct | Claude Code, Codex | Reviewed the Day 1 scaffolding separately. Claude Code found 7 issues; Codex found 3 more (pagination limit, version-zero ambiguity, CI wording) | Codex ran the build, started all three apps against Postgres and called real gRPC health checks. Claude Code checked each finding against the code. All were fixed, or settled as contract decisions (DECISIONS.md D5, D7) |
 
 ## My review notes
 
