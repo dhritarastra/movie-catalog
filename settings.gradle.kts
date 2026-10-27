@@ -1,4 +1,6 @@
 pluginManagement {
+    // Convention plugins shared by every module (build-logic/src/main/kotlin).
+    includeBuild("build-logic")
     repositories {
         gradlePluginPortal()
         mavenCentral()
