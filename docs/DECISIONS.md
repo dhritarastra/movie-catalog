@@ -66,10 +66,15 @@ register `MovieService` and `MediaService` classes whose methods still return
 
 **Why.**
 - The gateway is a blocking Spring MVC application, so blocking client stubs fit it.
-- Streaming uses `StreamObserver` on the server. For uploads the gateway uses the async stub
-  and writes each chunk from gRPC's on-ready callback, so a slow media service applies
-  backpressure instead of the gateway buffering the file. Downloads read the blocking stub's
-  iterator straight into the HTTP response.
+- Both streaming directions respect gRPC flow control, so a slow receiver applies backpressure
+  instead of the sender queueing the whole file in memory:
+  - **Uploads:** the gateway uses the async stub and writes each chunk from gRPC's on-ready
+    callback (`MediaClient`).
+  - **Downloads:** media sends chunks only while `isReady()` is true and resumes from the on-ready
+    handler (`ChunkedDownload`). It opens the file before sending anything and closes it on
+    completion, failure or cancellation. The gateway reads the blocking stub's iterator straight
+    into the HTTP response, inside a cancellable gRPC context, so a browser that goes away
+    cancels the call.
 - One set of generated code serves client and server, and it keeps the build to a single
   protoc plugin.
 
@@ -161,6 +166,11 @@ means the `Upload` scalar, schema validation and error resolvers behave exactly 
 matches the path first and answers any non-JSON body with 415. Ordering a narrower router function
 ahead of it fixes that. Batched operations (a JSON array in `operations`) are not supported.
 
+**Envelope checks.** Before anything runs, `operations` must be a JSON object with a non-empty
+`query`, an object (or no) `variables` and a string (or no) `operationName`, and `map` must be an
+object of path lists. Anything else, including a literal JSON `null`, is a `BAD_REQUEST`, never a
+500.
+
 ## D10. What upload progress means
 
 The browser's progress bar measures bytes sent to the server it is talking to. Behind nginx that
@@ -182,6 +192,15 @@ folder first and moved into place only after validation; the database row is wri
 
 **Why.** A row never points at missing files, and a half-written upload is never served. Each
 upload gets a new ID, so image URLs never change content and can be cached for a year.
+
+**Corrupt files.** The JDK's JPEG decoder does not fail on a truncated file: it fills the missing
+area with grey and only reports a warning. Media treats any decoder warning as damage and rejects
+the upload, which catches truncated JPEGs.
+
+**Caching errors.** The gateway prepares success headers (including the one-year cache) only
+after media has sent the image's metadata. If the stream then fails before any bytes reach the
+browser, the response is reset and answered with an error marked `no-store`. If bytes have
+already gone out, the response is aborted, so the short body cannot be cached as the image.
 
 **Limitations.** Files whose deletion fails are left behind and logged; there is no clean-up job.
 JPEGs in CMYK colour cannot be decoded by the JDK's image library and are rejected as corrupt.
