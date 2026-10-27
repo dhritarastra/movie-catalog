@@ -56,6 +56,8 @@ class Movie(
      * Mark an accepted mutation even when its submitted values are unchanged. Making the
      * timestamp dirty causes Hibernate to issue one version-checked UPDATE on flush.
      * Keep it distinct at Postgres microsecond precision even for two immediate writes.
+     * JPA's OPTIMISTIC_FORCE_INCREMENT lock is not used instead: when a field does change, it
+     * raises the version twice (once for the UPDATE, once for the forced increment).
      */
     @PreUpdate
     fun markUpdated() {
