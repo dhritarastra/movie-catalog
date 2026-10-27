@@ -1,6 +1,9 @@
 package com.moviecatalog.gateway.movie
 
 import com.moviecatalog.catalog.v1.MovieFields
+import com.moviecatalog.gateway.graphql.PageInput
+import com.moviecatalog.gateway.graphql.limitOrDefault
+import com.moviecatalog.gateway.graphql.offsetOrDefault
 import com.moviecatalog.gateway.grpc.CatalogClient
 import com.moviecatalog.gateway.grpc.UploadSource
 import io.grpc.Status
@@ -22,8 +25,8 @@ class MovieController(
 ) {
     @QueryMapping
     fun movies(@Argument page: PageInput?): MoviePageView {
-        val offset = page?.offset ?: 0
-        val limit = page?.limit ?: DEFAULT_PAGE_SIZE
+        val offset = page.offsetOrDefault()
+        val limit = page.limitOrDefault()
         val response = catalog.listMovies(offset, limit)
         return MoviePageView(response.moviesList.map(MovieView::of), response.totalCount, offset, limit)
     }
@@ -78,10 +81,6 @@ class MovieController(
     @SchemaMapping(typeName = "Movie", field = "artworkUrl")
     fun artworkUrl(movie: MovieView, @Argument variant: ArtworkVariant): String? =
         movie.artworkId?.let { "/media/$it?variant=${if (variant == ArtworkVariant.THUMBNAIL) "thumb" else "full"}" }
-
-    companion object {
-        const val DEFAULT_PAGE_SIZE = 20
-    }
 }
 
 private fun MovieInput.toFields(): MovieFields =

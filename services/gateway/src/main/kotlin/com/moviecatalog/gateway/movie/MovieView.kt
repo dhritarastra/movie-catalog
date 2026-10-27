@@ -1,7 +1,6 @@
 package com.moviecatalog.gateway.movie
 
-import com.google.protobuf.Timestamp
-import java.time.Instant
+import com.moviecatalog.gateway.graphql.toIsoString
 import com.moviecatalog.catalog.v1.Movie as MovieProto
 
 /**
@@ -39,9 +38,6 @@ data class MovieView(
 
 data class MoviePageView(val items: List<MovieView>, val totalCount: Int, val offset: Int, val limit: Int)
 
-/** `PageInput` as received. An explicit null limit means the default, like an omitted one (DECISIONS D7). */
-data class PageInput(val offset: Int?, val limit: Int?)
-
 /** `MovieInput` as received; the catalog validates and normalises it. */
 data class MovieInput(
     val title: String,
@@ -50,5 +46,3 @@ data class MovieInput(
     val runtimeMinutes: Int?,
     val genres: List<String>,
 )
-
-private fun Timestamp.toIsoString(): String = Instant.ofEpochSecond(seconds, nanos.toLong()).toString()
