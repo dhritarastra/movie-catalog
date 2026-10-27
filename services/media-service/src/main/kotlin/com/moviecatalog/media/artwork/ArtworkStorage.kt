@@ -1,14 +1,13 @@
 package com.moviecatalog.media.artwork
 
 import org.springframework.stereotype.Component
+import com.moviecatalog.media.config.MediaProperties
 import java.awt.image.BufferedImage
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 import javax.imageio.ImageIO
-
-enum class ArtworkVariant(val fileName: String) { FULL("full"), THUMBNAIL("thumb") }
 
 /**
  * Image files on disk: `<storage-dir>/<artwork id>/full.<ext>` and `thumb.<ext>`. Uploads are

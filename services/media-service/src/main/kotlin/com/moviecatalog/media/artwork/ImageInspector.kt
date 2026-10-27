@@ -8,18 +8,6 @@ import java.nio.file.Path
 import javax.imageio.ImageIO
 import javax.imageio.ImageReader
 
-enum class ImageFormat(val contentType: String, val imageIoName: String, val extension: String) {
-    JPEG("image/jpeg", "jpeg", "jpg"),
-    PNG("image/png", "png", "png"),
-    ;
-
-    companion object {
-        fun ofContentType(contentType: String): ImageFormat = entries.single { it.contentType == contentType }
-    }
-}
-
-class InspectedImage(val format: ImageFormat, val image: BufferedImage)
-
 /**
  * Decides whether an uploaded file is an image we accept, trusting only its bytes:
  * 1. the format comes from the file's signature (magic bytes), never the declared type or name,
