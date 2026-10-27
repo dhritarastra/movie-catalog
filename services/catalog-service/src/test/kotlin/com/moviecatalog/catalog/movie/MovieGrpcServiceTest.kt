@@ -1,7 +1,8 @@
 package com.moviecatalog.catalog.movie
 
-import com.google.rpc.BadRequest
-import com.moviecatalog.catalog.TestcontainersConfiguration
+import com.moviecatalog.catalog.CATALOG_IN_PROCESS_NAME
+import com.moviecatalog.catalog.CatalogGrpcTest
+import com.moviecatalog.catalog.badRequestFields
 import com.moviecatalog.catalog.v1.ClearArtworkRequest
 import com.moviecatalog.catalog.v1.CreateMovieRequest
 import com.moviecatalog.catalog.v1.DeleteMovieRequest
@@ -16,24 +17,20 @@ import io.grpc.ManagedChannel
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.protobuf.StatusProto
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.simple.JdbcClient
 import java.util.UUID
 import com.moviecatalog.catalog.v1.Movie as MovieProto
 
 /** Drives the real gRPC endpoint in-process against Postgres: mapping, rules and SQL together. */
-@SpringBootTest(properties = ["spring.grpc.server.port=0", "spring.grpc.server.inprocess.name=$IN_PROCESS_NAME"])
-@Import(TestcontainersConfiguration::class)
+@CatalogGrpcTest
 class MovieGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
-    private val channel: ManagedChannel = InProcessChannelBuilder.forName(IN_PROCESS_NAME).directExecutor().build()
+    private val channel: ManagedChannel = InProcessChannelBuilder.forName(CATALOG_IN_PROCESS_NAME).directExecutor().build()
     private val movies = MovieServiceGrpc.newBlockingStub(channel)
 
     @BeforeEach
@@ -281,12 +278,4 @@ class MovieGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
 
     private fun setArtwork(movieId: String, version: Int, artworkId: String) =
         SetArtworkRequest.newBuilder().setMovieId(movieId).setExpectedVersion(version).setArtworkId(artworkId).build()
-
-    private fun badRequestFields(error: StatusRuntimeException): List<String> =
-        StatusProto.fromThrowable(error)!!.detailsList
-            .single { it.`is`(BadRequest::class.java) }
-            .unpack(BadRequest::class.java)
-            .fieldViolationsList.map { it.field }
 }
-
-private const val IN_PROCESS_NAME = "movie-grpc-test"

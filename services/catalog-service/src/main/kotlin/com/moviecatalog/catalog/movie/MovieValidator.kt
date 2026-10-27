@@ -2,8 +2,8 @@ package com.moviecatalog.catalog.movie
 
 import com.moviecatalog.catalog.common.FieldViolation
 import com.moviecatalog.catalog.common.InvalidArgumentException
+import com.moviecatalog.catalog.common.parseIsoDate
 import java.time.LocalDate
-import java.time.format.DateTimeParseException
 
 /**
  * Normalises and validates movie fields. Text is trimmed, blank optional text becomes null,
@@ -49,12 +49,7 @@ object MovieValidator {
     }
 
     private fun parseReleaseDate(value: String, violations: MutableList<FieldViolation>): LocalDate? {
-        val date = try {
-            LocalDate.parse(value)
-        } catch (_: DateTimeParseException) {
-            violations += FieldViolation("release_date", "must be a date in the form yyyy-MM-dd")
-            return null
-        }
+        val date = parseIsoDate("release_date", value, violations) ?: return null
         if (date < EARLIEST_RELEASE || date > LATEST_RELEASE) {
             violations += FieldViolation("release_date", "must be between $EARLIEST_RELEASE and $LATEST_RELEASE")
         }

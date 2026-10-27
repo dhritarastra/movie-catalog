@@ -1,7 +1,8 @@
 package com.moviecatalog.catalog.movie
 
-import com.google.protobuf.Timestamp
 import com.moviecatalog.catalog.common.RequestArguments
+import com.moviecatalog.catalog.common.complete
+import com.moviecatalog.catalog.common.toTimestamp
 import com.moviecatalog.catalog.v1.ArtworkChangeResponse
 import com.moviecatalog.catalog.v1.ClearArtworkRequest
 import com.moviecatalog.catalog.v1.CreateMovieRequest
@@ -16,7 +17,6 @@ import com.moviecatalog.catalog.v1.SetArtworkRequest
 import com.moviecatalog.catalog.v1.UpdateMovieRequest
 import io.grpc.stub.StreamObserver
 import org.springframework.stereotype.Service
-import java.time.Instant
 import com.moviecatalog.catalog.v1.Movie as MovieProto
 
 /**
@@ -91,11 +91,6 @@ private fun ArtworkChange.toProto(): ArtworkChangeResponse =
         .apply { this@toProto.previousArtworkId?.let { setPreviousArtworkId(it.toString()) } }
         .build()
 
-private fun <T> StreamObserver<T>.complete(value: T) {
-    onNext(value)
-    onCompleted()
-}
-
 private fun MovieFields.toInput() =
     MovieInput(
         title = title,
@@ -120,5 +115,3 @@ private fun Movie.toProto(): MovieProto =
             this@toProto.artworkId?.let { setArtworkId(it.toString()) }
         }
         .build()
-
-private fun Instant.toTimestamp(): Timestamp = Timestamp.newBuilder().setSeconds(epochSecond).setNanos(nano).build()
