@@ -4,9 +4,10 @@ A movie catalog with artwork, cast and creators. It has a Svelte + TypeScript fr
 Kotlin Spring Boot services: the frontend talks to the backend over GraphQL, and the
 services talk to each other over gRPC.
 
-> **Status: in progress.** You can list, create, view, edit and delete movies, and upload,
-> replace and remove artwork, through the whole stack. Cast, creators and search are next; see
-> the schedule in [docs/PLAN.md](docs/PLAN.md#11-schedule-26-october-to-1-november-2026).
+> **Status: in progress.** You can list, create, view, edit and delete movies and people (cast
+> and creators), and upload, replace and remove movie artwork, through the whole stack. Crediting
+> people on movies and search are next; see the schedule in
+> [docs/PLAN.md](docs/PLAN.md#11-schedule-26-october-to-1-november-2026).
 
 ## Architecture
 
@@ -121,10 +122,11 @@ lint rules.
 
 `web/e2e/smoke.spec.ts` drives one user flow in Chromium against the running stack, through nginx
 and the real services:
-- create a movie
-- upload artwork and see it displayed
-- reload the movie's URL
+- create a movie, upload artwork and see it displayed, and reload the movie's URL
 - check that bad uploads are refused with a message
+- edit the movie, including an edit refused because someone else saved first
+- remove the artwork and delete the movie, each after a confirmation
+- add, edit and delete a person, with the form's validation messages
 
 Start the stack and wait until every service is healthy:
 
@@ -152,7 +154,8 @@ after changing `WEB_PORT` in `.env`, set `E2E_BASE_URL`:
 E2E_BASE_URL=http://localhost:8081 npm run test:e2e
 ```
 
-Each run adds a movie named "Smoke test …"; `docker compose down -v` clears all data.
+A run that passes deletes the movie and person it created. An interrupted run can leave a movie
+named "Smoke test …" or a person named "Ada Smoke …"; `docker compose down -v` clears all data.
 
 CI runs all of these on pushes to `main` and on pull requests (`.github/workflows/ci.yml`). Its
 `stack` job builds the Docker images, starts the stack, and runs the browser smoke test against
@@ -168,6 +171,17 @@ query {
   movies(page: { offset: 0, limit: 12 }) {
     totalCount
     items { id title releaseDate artworkUrl(variant: THUMBNAIL) }
+  }
+}
+```
+
+Updates replace every editable field and carry the version that was read; a stale version is a
+`CONFLICT`:
+
+```graphql
+mutation {
+  updatePerson(id: "<id>", version: 1, input: { name: "Amy Adams", birthDate: "1974-08-20" }) {
+    version
   }
 }
 ```

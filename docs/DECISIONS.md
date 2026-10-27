@@ -81,6 +81,11 @@ register `MovieService` and `MediaService` classes whose methods still return
 **Cost.** Server streaming code is more verbose than it would be with Kotlin `Flow`. Revisit
 this if that becomes a problem in the media service.
 
+**Channels.** Spring gRPC's `GrpcChannelFactory.createChannel` opens a new channel on every call;
+it does not reuse one per target. `GrpcClientConfiguration` therefore creates one channel per
+downstream service and builds all of that service's stubs on it, so the gateway keeps one HTTP/2
+connection to catalog and one to media.
+
 ## D4. Contract conventions (proto and GraphQL)
 
 - **IDs** are UUID strings.
@@ -234,3 +239,30 @@ SvelteKit `load` functions. GraphQL types are generated from the gateway's schem
   never overwrites newer data.
 - Committing the generated types keeps the Docker build independent of the backend schema file;
   CI regenerates them and fails if they differ.
+
+**Testing.** Form and formatting rules live in plain TypeScript modules (`format.ts`, `forms.ts`)
+with Vitest tests in Node. Component tests would need a browser in the CI web job, and the
+Playwright smoke test already drives the real components end to end.
+
+## D13. People
+
+**Decision.** People follow the movie rules: full-replacement updates and deletes guarded by the
+version (D5), and pagination that rejects out-of-range values (D7). Names are not unique.
+
+**List order.** People are listed alphabetically, ignoring case and accents, with the ID as a
+tie-breaker. The `name` column uses ICU's language-neutral collation (`und-x-icu`).
+- **Finding.** The database default, `en_US.utf8`, sorts byte by byte on the Alpine image, because
+  musl's C library has no locale-aware collation. "Émile" came after "zoe". A Testcontainers test
+  with accented names failed this way before the fix.
+- ICU ships with the official Postgres images, so the order no longer depends on the OS.
+- **Cost.** An ICU upgrade can change the collation's version. Postgres then warns, and the name
+  index should be rebuilt.
+
+**Birth dates** are optional, from 1800-01-01 up to today. "Today" is the date in UTC+14, the first
+time zone to reach each day, so a date that is today for the user is never rejected as the future.
+The browser checks against its own local date, which is never later, so it never accepts a date
+the catalog would refuse.
+
+**Deleting a credited person** will be refused with `FAILED_PRECONDITION` once credits exist: the
+credit table's foreign key will restrict it, and the UI will show the reason (PLAN.md §3, decision
+10). Until then nothing can refer to a person, so deletion is only guarded by the version.
