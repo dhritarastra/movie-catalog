@@ -1,7 +1,7 @@
 import type { TypedDocumentString } from './generated/graphql';
 
 /**
- * The `extensions.code` values the gateway sends (services/gateway GatewayErrors.kt), plus
+ * The `extensions.code` values the gateway sends (services/gateway ErrorCode.kt), plus
  * NETWORK for failures before any GraphQL response arrived.
  */
 export type ErrorCode =

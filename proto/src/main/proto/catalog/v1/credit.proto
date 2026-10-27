@@ -14,7 +14,7 @@ enum CreditType {
 }
 
 // Links a person to a movie in one role. Creator credits have no character name.
-// Credits are last-write-wins (no version), as documented in docs/PLAN.md.
+// Credits are last-write-wins: they carry no version, and an update replaces the credit as sent.
 message Credit {
   string id = 1;
   string movie_id = 2;
