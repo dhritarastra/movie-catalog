@@ -259,6 +259,33 @@ class MovieGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
         assertThat(stale.status.code).isEqualTo(Status.Code.ABORTED)
     }
 
+    @Test
+    fun `saving identical fields still advances the version and rejects the old version`() {
+        val fields = MovieFields.newBuilder().setTitle("Arrival")
+        val movie = create(fields)
+        val saved = movies.updateMovie(update(movie.id, movie.version, fields))
+
+        assertThat(saved.version).isEqualTo(2)
+        assertThat(get(movie.id).version).isEqualTo(2)
+        val stale = assertThrows<StatusRuntimeException> { movies.updateMovie(update(movie.id, movie.version, fields)) }
+        assertThat(stale.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+    @Test
+    fun `unchanged artwork mutations still advance the version exactly once`() {
+        val movie = create(MovieFields.newBuilder().setTitle("Arrival"))
+        val cleared = movies.clearArtwork(clear(movie.id, version = 1))
+        assertThat(cleared.movie.version).isEqualTo(2)
+        assertThat(cleared.hasPreviousArtworkId()).isFalse()
+
+        val artwork = UUID.randomUUID().toString()
+        movies.setArtwork(setArtwork(movie.id, version = 2, artworkId = artwork))
+        val same = movies.setArtwork(setArtwork(movie.id, version = 3, artworkId = artwork))
+        assertThat(same.movie.version).isEqualTo(4)
+        assertThat(same.previousArtworkId).isEqualTo(artwork)
+        assertThat(get(movie.id).version).isEqualTo(4)
+    }
+
     private fun get(id: String): MovieProto = movies.getMovie(GetMovieRequest.newBuilder().setId(id).build())
 
     private fun update(id: String, version: Int, fields: MovieFields.Builder) =

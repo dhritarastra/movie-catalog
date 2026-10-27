@@ -64,7 +64,7 @@ class PersonRepositoryTest(
     }
 
     @Test
-    fun `sorts by name ignoring case and accents, with the id breaking ties`() {
+    fun `sorts names alphabetically with ICU, with the id breaking identical-name ties`() {
         listOf("Jeremy Renner", "denis Villeneuve", "Émile Hirsch", "Amy Adams", "Amy Adams").forEach { repository.save(Person(it, null, null)) }
         repository.flush()
         entityManager.clear()
@@ -74,5 +74,22 @@ class PersonRepositoryTest(
         assertThat(page.content.map { it.name }).containsExactly("Amy Adams", "Amy Adams", "denis Villeneuve", "Émile Hirsch", "Jeremy Renner")
         // Postgres orders uuids as their canonical strings sort.
         assertThat(page.content.take(2).map { it.id.toString() }).isSorted()
+    }
+
+    @Test
+    fun `case and accent distinctions precede the id tie breaker`() {
+        jdbc.sql(
+            """
+            INSERT INTO person (id, name) VALUES
+            ('00000000-0000-0000-0000-000000000001', 'Amy'),
+            ('00000000-0000-0000-0000-000000000002', 'amy'),
+            ('00000000-0000-0000-0000-000000000003', 'Émile'),
+            ('00000000-0000-0000-0000-000000000004', 'Emile')
+            """,
+        ).update()
+
+        val page = repository.findAll(OffsetPageRequest(0, 10, Sort.by("name", "id")))
+
+        assertThat(page.content.map { it.name }).containsExactly("amy", "Amy", "Emile", "Émile")
     }
 }

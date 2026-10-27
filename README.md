@@ -128,11 +128,15 @@ and the real services:
   shows their version
 - leave the edit page while a save is in flight: the save is confirmed, but does not pull the
   user back to the movie
+- receive delayed field-error and timeout responses after leaving both edit forms: a toast
+  explains the outcome and the new draft keeps its focus and values
+- use Back/Forward during deletion: a reused detail page clears the old dialog and stays usable
 - remove the artwork and delete the movie, each after a confirmation
 - add, edit and delete a person, with the form's validation messages
 
-The in-flight steps hold the GraphQL response in the test (the server has already saved), so
-they do not depend on timing.
+The successful in-flight steps hold real GraphQL responses (the server has already saved).
+The late-failure steps inject delayed field-error and timeout responses. Neither depends on
+connection timing.
 
 Start the stack and wait until every service is healthy:
 
@@ -164,7 +168,7 @@ A run that passes deletes the movie and person it created. A failed or interrupt
 a movie named "Smoke test …" or a person named "Ada Smoke …" behind; they do not affect later
 runs, and `docker compose down -v` clears all data.
 
-CI runs all of these on pushes to `main` and on pull requests (`.github/workflows/ci.yml`). Its
+CI runs all of these on every branch push and on pull requests (`.github/workflows/ci.yml`). Its
 `stack` job builds the Docker images, starts the stack, and runs the browser smoke test against
 it, uploading the Playwright report if it fails.
 
@@ -183,7 +187,15 @@ query {
 ```
 
 Updates replace every editable field and carry the version that was read; a stale version is a
-`CONFLICT`:
+`CONFLICT`. Every successful movie/person update and artwork attach/remove advances the movie
+or person version exactly once, including requests whose values are unchanged.
+
+People are listed alphabetically using Postgres's `und-x-icu` collation. Case and accents can
+break ties between otherwise equivalent letters; the ID breaks ties between identical names.
+The original V2 migration comment says these distinctions are ignored, but that is inaccurate;
+the applied migration is kept unchanged to preserve its Flyway checksum.
+
+For example:
 
 ```graphql
 mutation {
@@ -210,8 +222,9 @@ Images are JPEG or PNG, up to 5 MB and 8000×8000 pixels. Errors carry `extensio
 ## How AI tools were used
 
 I used AI tools as assistants, the way I would use a search engine or a second reviewer. The
-scope and design decisions are mine, and every change was built, tested and run before it was
-committed.
+scope and design decisions are mine. Builds, tests, runtime checks and independent reviews
+are used to verify changes. Some refactor commits preceded full Docker/browser verification;
+commit messages record those gaps. Check the CI run for the exact commit being reviewed.
 
 **Tools**
 - **Claude Code** (Anthropic): turning the brief into a plan, checking current library

@@ -42,6 +42,7 @@ class MovieService(
         movie.releaseDate = input.releaseDate?.let(LocalDate::parse)
         movie.runtimeMinutes = input.runtimeMinutes
         movie.genres = input.genres
+        movie.markUpdated()
         return repository.saveAndFlush(movie)
     }
 
@@ -70,6 +71,7 @@ class MovieService(
         val movie = current(id, expectedVersion)
         val previous = movie.artworkId
         movie.artworkId = artworkId
+        movie.markUpdated()
         return ArtworkChange(repository.saveAndFlush(movie), previous)
     }
 

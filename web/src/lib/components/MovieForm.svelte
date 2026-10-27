@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
 	import { parseGenres } from '#lib/format.ts';
+	import { describeError } from '#lib/graphql/client.ts';
+	import { trackVisit } from '#lib/navigation.ts';
+	import { showToast } from '#lib/toasts.svelte.ts';
 	import { saveFailure, type SaveFailure } from '#lib/forms.ts';
 	import type { ResolvedPathname } from '$app/types';
 	import type { MovieInput } from '#lib/graphql/generated/graphql.ts';
@@ -43,6 +46,8 @@
 	let errors = $state<Record<string, string>>({});
 	let formError = $state<{ message: string; conflict: boolean } | null>(null);
 	let alert: HTMLElement | undefined = $state();
+	let form: HTMLFormElement | undefined = $state();
+	const visit = trackVisit();
 
 	/** Mirrors the catalog's rules for instant feedback; the catalog still has the final say. */
 	function validate(): Record<string, string> {
@@ -63,11 +68,13 @@
 		errors = validate();
 		formError = null;
 		if (Object.keys(errors).length > 0) {
-			document.getElementById(Object.keys(errors)[0])?.focus();
+			form?.querySelector<HTMLElement>(`#${Object.keys(errors)[0]}`)?.focus();
 			return;
 		}
 		// The fields are locked until the save finishes, so what was sent is what the user sees.
 		saving = true;
+		const stillHere = visit.mark();
+		const subject = title.trim();
 		let failure: SaveFailure | null = null;
 		try {
 			// Every editable field is sent: updates replace the whole record.
@@ -79,28 +86,34 @@
 				synopsis: synopsis || null
 			});
 		} catch (error) {
+			if (!stillHere()) {
+				showToast('error', `Save for “${subject}”: ${describeError(error)}`);
+				return;
+			}
 			failure = saveFailure(
 				error,
 				FIELDS,
 				'Someone else changed this movie while you were editing. Reload to see the latest version; your changes here will be lost.'
 			);
 		} finally {
-			saving = false;
+			if (stillHere()) saving = false;
 		}
-		if (failure) await showFailure(failure);
+		if (failure && stillHere()) await showFailure(failure, stillHere);
 	}
 
 	/** Locking the fields took focus off the form, so focus goes back to what needs attention. */
-	async function showFailure(failure: SaveFailure) {
+	async function showFailure(failure: SaveFailure, stillHere: () => boolean) {
 		if (failure.kind === 'fields') errors = failure.errors;
 		else formError = failure;
 		await tick();
-		if (failure.kind === 'fields') document.getElementById(Object.keys(errors)[0])?.focus();
+		if (!stillHere()) return;
+		if (failure.kind === 'fields')
+			form?.querySelector<HTMLElement>(`#${Object.keys(errors)[0]}`)?.focus();
 		else alert?.focus();
 	}
 </script>
 
-<form class="panel form" onsubmit={submit} novalidate aria-busy={saving}>
+<form bind:this={form} class="panel form" onsubmit={submit} novalidate aria-busy={saving}>
 	{#if formError}
 		<div class="alert" role="alert" tabindex="-1" bind:this={alert}>
 			<p>{formError.message}</p>

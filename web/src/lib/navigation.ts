@@ -1,3 +1,4 @@
+import { onDestroy } from 'svelte';
 import { beforeNavigate } from '$app/navigation';
 
 /**
@@ -13,6 +14,9 @@ import { beforeNavigate } from '$app/navigation';
  */
 export function trackVisit(): { mark(): () => boolean } {
 	let navigations = 0;
+	onDestroy(() => {
+		navigations++;
+	});
 	beforeNavigate(() => {
 		navigations++;
 	});

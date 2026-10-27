@@ -25,5 +25,5 @@ media:
   max-width: 8000
   max-height: 8000
   thumbnail-width: 400
-  # Downloads stream in chunks this size; gRPC's default message limit is 4 MiB.
+  # Downloads stream in chunks this size; valid sizes are 1 byte to 1 MiB (below gRPC's 4 MiB message limit).
   download-chunk-bytes: 65536 # 64 KiB

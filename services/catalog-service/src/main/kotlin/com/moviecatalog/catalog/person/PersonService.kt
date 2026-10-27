@@ -29,7 +29,7 @@ class PersonService(
     fun get(id: UUID): Person = repository.findByIdOrNull(id) ?: throw notFound(id)
 
     /**
-     * Alphabetical, ignoring case and accents through the name column's ICU collation
+     * Alphabetical through the name column's ICU collation (case and accents break letter ties)
      * (V2__create_person.sql). The id tie-breaker keeps people with the same name in a stable order.
      */
     fun list(offset: Int, limit: Int): Page<Person> = repository.findAll(paging.of(offset, limit, BY_NAME))
@@ -41,6 +41,7 @@ class PersonService(
         person.name = input.name
         person.bio = input.bio
         person.birthDate = input.birthDate?.let(LocalDate::parse)
+        person.markUpdated()
         return repository.saveAndFlush(person)
     }
 

@@ -24,6 +24,10 @@
 		const personId = id;
 		void attempt;
 		const controller = new AbortController();
+		// Back/Forward can reuse this component for another ID while an action is pending.
+		confirming = false;
+		busy = false;
+		confirmError = null;
 		view = { status: 'loading' };
 		request(PersonQuery, { id: personId }, { signal: controller.signal })
 			.then(
@@ -49,28 +53,28 @@
 		confirmError = null;
 		try {
 			await request(DeletePersonMutation, { id: person.id, version: person.version });
-			confirming = false;
+			if (stillHere()) confirming = false;
 			showToast('success', `${person.name} was deleted.`);
 			if (stillHere()) await goto(resolve('/people'));
 		} catch (error) {
+			if (!stillHere()) {
+				showToast('error', `Deletion of “${person.name}”: ${describeError(error)}`);
+				return;
+			}
 			if (error instanceof GraphQlRequestError && error.code === 'CONFLICT') {
 				confirming = false;
-				if (stillHere()) {
-					// Nothing was deleted. Show the latest version so the user decides again knowingly.
-					attempt++;
-					showToast(
-						'error',
-						'Someone else changed this person, so nothing was deleted. This is the latest version; try again if you still want to.'
-					);
-				} else {
-					showToast('error', `Someone else changed ${person.name}, so nothing was deleted.`);
-				}
+				// Nothing was deleted. Show the latest version so the user decides again knowingly.
+				attempt++;
+				showToast(
+					'error',
+					'Someone else changed this person, so nothing was deleted. This is the latest version; try again if you still want to.'
+				);
 			} else {
 				// Includes FAILED_PRECONDITION, whose message explains what has to change first.
 				confirmError = describeError(error);
 			}
 		} finally {
-			busy = false;
+			if (stillHere()) busy = false;
 		}
 	}
 </script>
