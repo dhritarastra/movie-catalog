@@ -8,3 +8,5 @@ bun.lockb
 # Miscellaneous
 /static/
 src/lib/graphql/generated/
+test-results/
+playwright-report/

@@ -78,6 +78,28 @@ jobs:
           curl -fsS http://localhost:3000/graphql -H 'Content-Type: application/json' \
             -d '{"query":"{ movies { totalCount } }"}' | grep -q '"totalCount":0'
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Playwright and Chromium
+        working-directory: web
+        run: npm ci && npx playwright install --with-deps chromium
+
+      # One user flow in a real browser against the stack built above (web/e2e/smoke.spec.ts).
+      - name: Browser smoke test
+        working-directory: web
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+
       - name: Show logs
         if: failure()
         run: docker compose logs --no-color
