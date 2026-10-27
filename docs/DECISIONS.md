@@ -114,6 +114,16 @@ version is refused instead of being compared against a stored version. This was 
 The `movie` and `person` tables will enforce it with `CHECK (version >= 1)` when the migrations
 are written.
 
+**How it is enforced.** Updates and deletes check the version inside the statement itself
+(`UPDATE ... WHERE id = :id AND version = :expected`, and the same for `DELETE`), so two
+concurrent writes cannot both succeed. When no row matches, the catalog looks the movie up once to
+tell a missing movie (`NOT_FOUND`) from a changed one (`ABORTED`, reported as `CONFLICT`).
+
+**What the UI does on a conflict.** On the edit form, the user's typed changes are kept until they
+choose "Reload movie", which discards them and loads the latest version. For delete and
+remove-artwork there is nothing typed to lose, so the page reloads the latest version straight away
+and explains that nothing was done.
+
 ## D6. One Postgres container, one database and role per service
 
 **Decision.** Compose runs a single Postgres 17 container. An init script creates `catalog`
@@ -192,6 +202,12 @@ folder first and moved into place only after validation; the database row is wri
 
 **Why.** A row never points at missing files, and a half-written upload is never served. Each
 upload gets a new ID, so image URLs never change content and can be cached for a year.
+
+**Deleting files.** The catalog's delete and remove-artwork calls return the artwork ID they
+released, from the same statement or row lock. The gateway's `ArtworkCleaner` then deletes that
+file. This is the same rule as for a replaced upload: only after the catalog has confirmed, and
+best effort, so a failure leaves an orphaned file (logged) rather than a movie pointing at a
+missing image.
 
 **Corrupt files.** The JDK's JPEG decoder does not fail on a truncated file: it fills the missing
 area with grey and only reports a warning. Media treats any decoder warning as damage and rejects

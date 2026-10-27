@@ -4,9 +4,9 @@ A movie catalog with artwork, cast and creators. It has a Svelte + TypeScript fr
 Kotlin Spring Boot services: the frontend talks to the backend over GraphQL, and the
 services talk to each other over gRPC.
 
-> **Status: in progress.** You can list, create and view movies and upload artwork through the
-> whole stack. Cast, creators, search, editing and deleting are next; see the schedule in
-> [docs/PLAN.md](docs/PLAN.md#11-schedule-26-october-to-1-november-2026).
+> **Status: in progress.** You can list, create, view, edit and delete movies, and upload,
+> replace and remove artwork, through the whole stack. Cast, creators and search are next; see
+> the schedule in [docs/PLAN.md](docs/PLAN.md#11-schedule-26-october-to-1-november-2026).
 
 ## Architecture
 
