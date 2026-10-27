@@ -22,8 +22,7 @@ import com.moviecatalog.catalog.v1.Movie as MovieProto
 /**
  * gRPC endpoint for movies: translates between protobuf messages and the domain, and leaves
  * business rules to [MovieService]. Exceptions are mapped to statuses by
- * CatalogGrpcExceptionHandler. Methods not overridden yet return UNIMPLEMENTED; they are
- * filled in slice by slice (docs/PLAN.md §11).
+ * CatalogGrpcExceptionHandler. Methods not overridden yet return UNIMPLEMENTED.
  */
 @Service
 class MovieGrpcService(private val movies: MovieService) : MovieServiceGrpc.MovieServiceImplBase() {
@@ -34,11 +33,11 @@ class MovieGrpcService(private val movies: MovieService) : MovieServiceGrpc.Movi
         responseObserver.complete(movies.get(RequestArguments.uuid("id", request.id)).toProto())
 
     override fun listMovies(request: ListMoviesRequest, responseObserver: StreamObserver<ListMoviesResponse>) {
-        val page = movies.list(RequestArguments.page(request.page.offset, request.page.limit))
+        val page = movies.list(request.page.offset, request.page.limit)
         responseObserver.complete(
             ListMoviesResponse.newBuilder()
-                .addAllMovies(page.movies.map { it.toProto() })
-                .setTotalCount(page.totalCount)
+                .addAllMovies(page.content.map { it.toProto() })
+                .setTotalCount(page.totalElements.toInt())
                 .build(),
         )
     }
@@ -53,14 +52,12 @@ class MovieGrpcService(private val movies: MovieService) : MovieServiceGrpc.Movi
         )
 
     override fun deleteMovie(request: DeleteMovieRequest, responseObserver: StreamObserver<DeleteMovieResponse>) {
-        val deleted = movies.delete(
-            id = RequestArguments.uuid("id", request.id),
-            expectedVersion = RequestArguments.expectedVersion(request.expectedVersion),
-        )
+        val id = RequestArguments.uuid("id", request.id)
+        val artworkId = movies.delete(id, RequestArguments.expectedVersion(request.expectedVersion))
         responseObserver.complete(
             DeleteMovieResponse.newBuilder()
-                .setId(deleted.id.toString())
-                .apply { deleted.artworkId?.let { setArtworkId(it.toString()) } }
+                .setId(id.toString())
+                .apply { artworkId?.let { setArtworkId(it.toString()) } }
                 .build(),
         )
     }
@@ -92,7 +89,7 @@ private fun ArtworkChange.toProto(): ArtworkChangeResponse =
         .build()
 
 private fun MovieFields.toInput() =
-    MovieInput(
+    MovieInput.normalised(
         title = title,
         synopsis = if (hasSynopsis()) synopsis else null,
         releaseDate = if (hasReleaseDate()) releaseDate else null,
@@ -102,7 +99,7 @@ private fun MovieFields.toInput() =
 
 private fun Movie.toProto(): MovieProto =
     MovieProto.newBuilder()
-        .setId(id.toString())
+        .setId(requireNotNull(id) { "a saved movie has an id" }.toString())
         .setTitle(title)
         .addAllGenres(genres)
         .setVersion(version)

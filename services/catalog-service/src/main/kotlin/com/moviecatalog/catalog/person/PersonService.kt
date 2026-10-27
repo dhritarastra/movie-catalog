@@ -1,39 +1,67 @@
 package com.moviecatalog.catalog.person
 
-import com.moviecatalog.catalog.common.CatalogException
 import com.moviecatalog.catalog.common.NotFoundException
-import com.moviecatalog.catalog.common.Page
+import com.moviecatalog.catalog.common.Paging
 import com.moviecatalog.catalog.common.VersionConflictException
+import com.moviecatalog.catalog.common.validation.InputValidator
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Sort
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDate
 import java.util.UUID
 
-/** People follow the movie rules: full-replacement updates and deletes guarded by the version (DECISIONS D5). */
+/** People follow the movie rules: full-replacement updates and deletes guarded by the version. */
 @Service
-class PersonService(private val repository: PersonRepository) {
-    fun create(input: PersonInput): Person = repository.insert(PersonValidator.validate(input))
+@Transactional(readOnly = true)
+class PersonService(
+    private val repository: PersonRepository,
+    private val validator: InputValidator,
+    private val paging: Paging,
+) {
+    @Transactional
+    fun create(input: PersonInput): Person {
+        validator.check(input)
+        return repository.save(Person(input.name, input.bio, input.birthDate?.let(LocalDate::parse)))
+    }
 
-    fun get(id: UUID): Person = repository.findById(id) ?: throw notFound(id)
+    fun get(id: UUID): Person = repository.findByIdOrNull(id) ?: throw notFound(id)
 
-    @Transactional(readOnly = true)
-    fun list(page: Page): PersonPage = PersonPage(repository.findPage(page), repository.count())
+    /**
+     * Alphabetical, ignoring case and accents through the name column's ICU collation
+     * (V2__create_person.sql). The id tie-breaker keeps people with the same name in a stable order.
+     */
+    fun list(offset: Int, limit: Int): Page<Person> = repository.findAll(paging.of(offset, limit, BY_NAME))
 
     @Transactional
     fun update(id: UUID, expectedVersion: Int, input: PersonInput): Person {
-        val draft = PersonValidator.validate(input)
-        return repository.update(id, expectedVersion, draft) ?: throw missingOrStale(id, expectedVersion)
+        validator.check(input)
+        val person = current(id, expectedVersion)
+        person.name = input.name
+        person.bio = input.bio
+        person.birthDate = input.birthDate?.let(LocalDate::parse)
+        return repository.saveAndFlush(person)
     }
 
     @Transactional
     fun delete(id: UUID, expectedVersion: Int) {
-        if (!repository.delete(id, expectedVersion)) throw missingOrStale(id, expectedVersion)
+        repository.delete(current(id, expectedVersion))
+        repository.flush()
     }
 
-    /** After a versioned write matched no row: either the person is gone or someone changed them first. */
-    private fun missingOrStale(id: UUID, expectedVersion: Int): CatalogException {
-        val currentVersion = repository.findVersion(id) ?: return notFound(id)
-        return VersionConflictException("Person $id is at version $currentVersion, not $expectedVersion; reload and try again")
+    /** The person the caller wants to change, if they saw the current version; see MovieService. */
+    private fun current(id: UUID, expectedVersion: Int): Person {
+        val person = repository.findByIdOrNull(id) ?: throw notFound(id)
+        if (person.version != expectedVersion) {
+            throw VersionConflictException("Person $id is at version ${person.version}, not $expectedVersion; reload and try again")
+        }
+        return person
     }
 
     private fun notFound(id: UUID) = NotFoundException("Person $id not found")
+
+    private companion object {
+        val BY_NAME: Sort = Sort.by("name", "id")
+    }
 }
