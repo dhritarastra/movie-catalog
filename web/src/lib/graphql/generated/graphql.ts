@@ -47,6 +47,31 @@ export type CreateMovieMutationVariables = Exact<{
 
 export type CreateMovieMutation = { createMovie: { id: string } };
 
+export type UpdateMovieMutationVariables = Exact<{
+  id: string | number;
+  version: number;
+  input: MovieInput;
+}>;
+
+
+export type UpdateMovieMutation = { updateMovie: { id: string, title: string, synopsis: string | null, releaseDate: string | null, runtimeMinutes: number | null, genres: Array<string>, version: number, artworkUrl: string | null } };
+
+export type DeleteMovieMutationVariables = Exact<{
+  id: string | number;
+  version: number;
+}>;
+
+
+export type DeleteMovieMutation = { deleteMovie: string };
+
+export type RemoveArtworkMutationVariables = Exact<{
+  movieId: string | number;
+  version: number;
+}>;
+
+
+export type RemoveArtworkMutation = { removeArtwork: { id: string, title: string, synopsis: string | null, releaseDate: string | null, runtimeMinutes: number | null, genres: Array<string>, version: number, artworkUrl: string | null } };
+
 export type UploadArtworkMutationVariables = Exact<{
   movieId: string | number;
   version: number;
@@ -136,6 +161,43 @@ export const CreateMovieDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<CreateMovieMutation, CreateMovieMutationVariables>;
+export const UpdateMovieDocument = new TypedDocumentString(`
+    mutation UpdateMovie($id: ID!, $version: Int!, $input: MovieInput!) {
+  updateMovie(id: $id, version: $version, input: $input) {
+    ...MovieDetailFields
+  }
+}
+    fragment MovieDetailFields on Movie {
+  id
+  title
+  synopsis
+  releaseDate
+  runtimeMinutes
+  genres
+  version
+  artworkUrl(variant: FULL)
+}`) as unknown as TypedDocumentString<UpdateMovieMutation, UpdateMovieMutationVariables>;
+export const DeleteMovieDocument = new TypedDocumentString(`
+    mutation DeleteMovie($id: ID!, $version: Int!) {
+  deleteMovie(id: $id, version: $version)
+}
+    `) as unknown as TypedDocumentString<DeleteMovieMutation, DeleteMovieMutationVariables>;
+export const RemoveArtworkDocument = new TypedDocumentString(`
+    mutation RemoveArtwork($movieId: ID!, $version: Int!) {
+  removeArtwork(movieId: $movieId, version: $version) {
+    ...MovieDetailFields
+  }
+}
+    fragment MovieDetailFields on Movie {
+  id
+  title
+  synopsis
+  releaseDate
+  runtimeMinutes
+  genres
+  version
+  artworkUrl(variant: FULL)
+}`) as unknown as TypedDocumentString<RemoveArtworkMutation, RemoveArtworkMutationVariables>;
 export const UploadArtworkDocument = new TypedDocumentString(`
     mutation UploadArtwork($movieId: ID!, $version: Int!, $file: Upload!) {
   uploadArtwork(movieId: $movieId, version: $version, file: $file) {

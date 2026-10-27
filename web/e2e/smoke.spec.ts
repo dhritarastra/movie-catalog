@@ -5,10 +5,11 @@ import { png } from './images';
  * The browser smoke test (docs/PLAN.md §9): one flow through the whole stack, extended as
  * features arrive. Everything else is covered by faster tests at lower layers.
  */
-test('create a movie, upload artwork and see it everywhere, with failures explained', async ({
+test('create, upload artwork, edit and delete a movie, with failures explained', async ({
 	page
 }) => {
 	const title = `Smoke test ${Date.now()}`;
+	const editedTitle = `${title} (edited)`;
 
 	await test.step('the movie list loads', async () => {
 		await page.goto('/movies');
@@ -77,7 +78,89 @@ test('create a movie, upload artwork and see it everywhere, with failures explai
 			400
 		);
 	});
+
+	await test.step('editing replaces the details and keeps the artwork', async () => {
+		await page.getByRole('link', { name: new RegExp(title) }).click();
+		await page.getByRole('link', { name: 'Edit', exact: true }).click();
+		await expect(page.getByLabel('Title')).toHaveValue(title);
+		await page.getByLabel('Title').fill(editedTitle);
+		await page.getByLabel('Runtime (minutes)').fill('165');
+		await page.getByRole('button', { name: 'Save changes' }).click();
+
+		await expect(page.getByText('Changes saved.')).toBeVisible();
+		await expect(page.getByRole('heading', { name: editedTitle, level: 1 })).toBeVisible();
+		await expect(page.getByText('2017 · 2h 45m')).toBeVisible();
+		await expectImageLoaded(page, `Artwork for ${editedTitle}`);
+	});
+
+	await test.step('an edit that would overwrite a newer change is refused, and Reload shows it', async () => {
+		await page.getByRole('link', { name: 'Edit', exact: true }).click();
+		await expect(page.getByLabel('Title')).toHaveValue(editedTitle);
+		// Someone else saves a change while this form is open.
+		await renameElsewhere(page, page.url().split('/').at(-2)!, `${title} (changed elsewhere)`);
+
+		await page.getByLabel('Title').fill(`${title} (my late edit)`);
+		await page.getByRole('button', { name: 'Save changes' }).click();
+		await expect(page.getByRole('alert')).toContainText('Someone else changed this movie');
+
+		await page.getByRole('button', { name: 'Reload movie' }).click();
+		await expect(page.getByLabel('Title')).toHaveValue(`${title} (changed elsewhere)`);
+		await page.getByRole('link', { name: 'Cancel' }).click();
+	});
+
+	await test.step('removing the artwork asks first, then shows the placeholder', async () => {
+		await page.getByRole('button', { name: 'Remove artwork' }).click();
+		const dialog = page.getByRole('dialog', { name: 'Remove the artwork?' });
+		await dialog.getByRole('button', { name: 'Remove artwork' }).click();
+
+		await expect(page.getByText('Artwork removed.')).toBeVisible();
+		await expect(page.getByText('No artwork yet')).toBeVisible();
+	});
+
+	await test.step('deleting asks first; cancelling keeps the movie, confirming removes it', async () => {
+		const name = `${title} (changed elsewhere)`;
+		await page.getByRole('button', { name: 'Delete', exact: true }).click();
+		await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible();
+
+		await page.getByRole('button', { name: 'Delete', exact: true }).click();
+		await page
+			.getByRole('dialog', { name: `Delete “${name}”?` })
+			.getByRole('button', { name: 'Delete movie' })
+			.click();
+
+		await expect(page.getByText(`“${name}” was deleted.`)).toBeVisible();
+		await expect(page).toHaveURL(/\/movies$/);
+		await expect(page.getByRole('link', { name: new RegExp(title) })).toHaveCount(0);
+	});
 });
+
+/** Changes the movie's title through the API, as another browser tab or user would. */
+async function renameElsewhere(page: Page, id: string, newTitle: string) {
+	const graphql = async (query: string, variables: Record<string, unknown>) => {
+		const response = await page.request.post('/graphql', { data: { query, variables } });
+		const body = await response.json();
+		expect(body.errors).toBeUndefined();
+		return body.data;
+	};
+	const { movie } = await graphql(
+		'query($id: ID!) { movie(id: $id) { version releaseDate runtimeMinutes genres } }',
+		{ id }
+	);
+	await graphql(
+		'mutation($id: ID!, $version: Int!, $input: MovieInput!) { updateMovie(id: $id, version: $version, input: $input) { version } }',
+		{
+			id,
+			version: movie.version,
+			input: {
+				title: newTitle,
+				releaseDate: movie.releaseDate,
+				runtimeMinutes: movie.runtimeMinutes,
+				genres: movie.genres
+			}
+		}
+	);
+}
 
 async function chooseFile(page: Page, name: string, mimeType: string, buffer: Buffer) {
 	await page.locator('#artwork-file').setInputFiles({ name, mimeType, buffer });

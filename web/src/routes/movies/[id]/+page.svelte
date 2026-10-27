@@ -1,11 +1,17 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import ArtworkUpload from '#lib/components/ArtworkUpload.svelte';
+	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import { formatRuntime, releaseYear } from '#lib/format.ts';
-	import { describeError, request } from '#lib/graphql/client.ts';
+	import { describeError, GraphQlRequestError, request } from '#lib/graphql/client.ts';
 	import type { MovieDetailFieldsFragment } from '#lib/graphql/generated/graphql.ts';
-	import { MovieQuery } from '#lib/graphql/operations.ts';
+	import {
+		DeleteMovieMutation,
+		MovieQuery,
+		RemoveArtworkMutation
+	} from '#lib/graphql/operations.ts';
 	import { showToast } from '#lib/toasts.svelte.ts';
 
 	type View =
@@ -38,6 +44,51 @@
 		view = { status: 'ready', movie };
 		showToast('success', 'Artwork updated.');
 	}
+
+	// One confirmation dialog, for whichever destructive action was chosen.
+	let confirming = $state<'delete' | 'remove-artwork' | null>(null);
+	let busy = $state(false);
+	let confirmError = $state<string | null>(null);
+
+	function askToConfirm(action: 'delete' | 'remove-artwork') {
+		confirmError = null;
+		confirming = action;
+	}
+
+	async function confirm(movie: MovieDetailFieldsFragment) {
+		busy = true;
+		confirmError = null;
+		try {
+			if (confirming === 'delete') {
+				await request(DeleteMovieMutation, { id: movie.id, version: movie.version });
+				confirming = null;
+				showToast('success', `“${movie.title}” was deleted.`);
+				await goto(resolve('/movies'));
+			} else {
+				const { removeArtwork } = await request(RemoveArtworkMutation, {
+					movieId: movie.id,
+					version: movie.version
+				});
+				confirming = null;
+				view = { status: 'ready', movie: removeArtwork };
+				showToast('success', 'Artwork removed.');
+			}
+		} catch (error) {
+			if (error instanceof GraphQlRequestError && error.code === 'CONFLICT') {
+				// Nothing was changed. Show the latest version so the user decides again knowingly.
+				confirming = null;
+				attempt++;
+				showToast(
+					'error',
+					'Someone else changed this movie, so nothing was done. This is the latest version; try again if you still want to.'
+				);
+			} else {
+				confirmError = describeError(error);
+			}
+		} finally {
+			busy = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -69,20 +120,34 @@
 {:else}
 	{@const movie = view.movie}
 	<article class="layout">
-		<div class="artwork">
+		<div class="artwork-column">
+			<div class="artwork">
+				{#if movie.artworkUrl}
+					<img src={movie.artworkUrl} alt="Artwork for {movie.title}" />
+				{:else}
+					<div class="placeholder">
+						<span aria-hidden="true">{movie.title.slice(0, 1).toUpperCase()}</span><span
+							class="muted">No artwork yet</span
+						>
+					</div>
+				{/if}
+			</div>
 			{#if movie.artworkUrl}
-				<img src={movie.artworkUrl} alt="Artwork for {movie.title}" />
-			{:else}
-				<div class="placeholder">
-					<span aria-hidden="true">{movie.title.slice(0, 1).toUpperCase()}</span><span class="muted"
-						>No artwork yet</span
-					>
-				</div>
+				<button class="button link" type="button" onclick={() => askToConfirm('remove-artwork')}>
+					Remove artwork
+				</button>
 			{/if}
 		</div>
 
 		<div class="details">
-			<h1>{movie.title}</h1>
+			<div class="title-row">
+				<h1>{movie.title}</h1>
+				<div class="actions">
+					<a class="button" href={resolve('/movies/[id]/edit', { id: movie.id })}>Edit</a>
+					<button class="button" type="button" onclick={() => askToConfirm('delete')}>Delete</button
+					>
+				</div>
+			</div>
 			<p class="muted facts">
 				{[releaseYear(movie.releaseDate), formatRuntime(movie.runtimeMinutes)]
 					.filter(Boolean)
@@ -104,6 +169,19 @@
 			/>
 		</div>
 	</article>
+
+	<ConfirmDialog
+		open={confirming !== null}
+		title={confirming === 'delete' ? `Delete “${movie.title}”?` : 'Remove the artwork?'}
+		message={confirming === 'delete'
+			? 'The movie and its artwork will be permanently deleted.'
+			: 'The image will be deleted. You can upload a new one afterwards.'}
+		confirmLabel={confirming === 'delete' ? 'Delete movie' : 'Remove artwork'}
+		{busy}
+		error={confirmError}
+		onConfirm={() => confirm(movie)}
+		onCancel={() => !busy && (confirming = null)}
+	/>
 {/if}
 
 <style>
@@ -155,6 +233,25 @@
 
 	.details h1 {
 		margin: 0;
+	}
+
+	.artwork-column {
+		display: grid;
+		gap: 0.5rem;
+		justify-items: start;
+	}
+
+	.title-row {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
+		flex-wrap: wrap;
+	}
+
+	.title-row .actions {
+		display: flex;
+		gap: 0.5rem;
 	}
 
 	.facts {

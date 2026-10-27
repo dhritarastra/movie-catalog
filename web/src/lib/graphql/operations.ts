@@ -54,6 +54,28 @@ export const CreateMovieMutation = graphql(`
 	}
 `);
 
+export const UpdateMovieMutation = graphql(`
+	mutation UpdateMovie($id: ID!, $version: Int!, $input: MovieInput!) {
+		updateMovie(id: $id, version: $version, input: $input) {
+			...MovieDetailFields
+		}
+	}
+`);
+
+export const DeleteMovieMutation = graphql(`
+	mutation DeleteMovie($id: ID!, $version: Int!) {
+		deleteMovie(id: $id, version: $version)
+	}
+`);
+
+export const RemoveArtworkMutation = graphql(`
+	mutation RemoveArtwork($movieId: ID!, $version: Int!) {
+		removeArtwork(movieId: $movieId, version: $version) {
+			...MovieDetailFields
+		}
+	}
+`);
+
 export const UploadArtworkMutation = graphql(`
 	mutation UploadArtwork($movieId: ID!, $version: Int!, $file: Upload!) {
 		uploadArtwork(movieId: $movieId, version: $version, file: $file) {

@@ -20,6 +20,9 @@ type Documents = {
     "\n\tfragment MovieDetailFields on Movie {\n\t\tid\n\t\ttitle\n\t\tsynopsis\n\t\treleaseDate\n\t\truntimeMinutes\n\t\tgenres\n\t\tversion\n\t\tartworkUrl(variant: FULL)\n\t}\n": typeof types.MovieDetailFieldsFragmentDoc,
     "\n\tquery Movie($id: ID!) {\n\t\tmovie(id: $id) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": typeof types.MovieDocument,
     "\n\tmutation CreateMovie($input: MovieInput!) {\n\t\tcreateMovie(input: $input) {\n\t\t\tid\n\t\t}\n\t}\n": typeof types.CreateMovieDocument,
+    "\n\tmutation UpdateMovie($id: ID!, $version: Int!, $input: MovieInput!) {\n\t\tupdateMovie(id: $id, version: $version, input: $input) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": typeof types.UpdateMovieDocument,
+    "\n\tmutation DeleteMovie($id: ID!, $version: Int!) {\n\t\tdeleteMovie(id: $id, version: $version)\n\t}\n": typeof types.DeleteMovieDocument,
+    "\n\tmutation RemoveArtwork($movieId: ID!, $version: Int!) {\n\t\tremoveArtwork(movieId: $movieId, version: $version) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": typeof types.RemoveArtworkDocument,
     "\n\tmutation UploadArtwork($movieId: ID!, $version: Int!, $file: Upload!) {\n\t\tuploadArtwork(movieId: $movieId, version: $version, file: $file) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": typeof types.UploadArtworkDocument,
 };
 const documents: Documents = {
@@ -28,6 +31,9 @@ const documents: Documents = {
     "\n\tfragment MovieDetailFields on Movie {\n\t\tid\n\t\ttitle\n\t\tsynopsis\n\t\treleaseDate\n\t\truntimeMinutes\n\t\tgenres\n\t\tversion\n\t\tartworkUrl(variant: FULL)\n\t}\n": types.MovieDetailFieldsFragmentDoc,
     "\n\tquery Movie($id: ID!) {\n\t\tmovie(id: $id) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": types.MovieDocument,
     "\n\tmutation CreateMovie($input: MovieInput!) {\n\t\tcreateMovie(input: $input) {\n\t\t\tid\n\t\t}\n\t}\n": types.CreateMovieDocument,
+    "\n\tmutation UpdateMovie($id: ID!, $version: Int!, $input: MovieInput!) {\n\t\tupdateMovie(id: $id, version: $version, input: $input) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": types.UpdateMovieDocument,
+    "\n\tmutation DeleteMovie($id: ID!, $version: Int!) {\n\t\tdeleteMovie(id: $id, version: $version)\n\t}\n": types.DeleteMovieDocument,
+    "\n\tmutation RemoveArtwork($movieId: ID!, $version: Int!) {\n\t\tremoveArtwork(movieId: $movieId, version: $version) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": types.RemoveArtworkDocument,
     "\n\tmutation UploadArtwork($movieId: ID!, $version: Int!, $file: Upload!) {\n\t\tuploadArtwork(movieId: $movieId, version: $version, file: $file) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": types.UploadArtworkDocument,
 };
 
@@ -51,6 +57,18 @@ export function graphql(source: "\n\tquery Movie($id: ID!) {\n\t\tmovie(id: $id)
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n\tmutation CreateMovie($input: MovieInput!) {\n\t\tcreateMovie(input: $input) {\n\t\t\tid\n\t\t}\n\t}\n"): typeof import('./graphql').CreateMovieDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation UpdateMovie($id: ID!, $version: Int!, $input: MovieInput!) {\n\t\tupdateMovie(id: $id, version: $version, input: $input) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n"): typeof import('./graphql').UpdateMovieDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation DeleteMovie($id: ID!, $version: Int!) {\n\t\tdeleteMovie(id: $id, version: $version)\n\t}\n"): typeof import('./graphql').DeleteMovieDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation RemoveArtwork($movieId: ID!, $version: Int!) {\n\t\tremoveArtwork(movieId: $movieId, version: $version) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n"): typeof import('./graphql').RemoveArtworkDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

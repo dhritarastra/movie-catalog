@@ -99,6 +99,21 @@ main.container {
 	color: var(--accent-text);
 }
 
+.button.danger {
+	background: var(--danger);
+	border-color: var(--danger);
+	color: var(--surface);
+}
+
+.button.link {
+	min-height: auto;
+	padding: 0.25rem 0;
+	border: 0;
+	background: none;
+	color: var(--danger);
+	font-weight: 600;
+}
+
 .button:disabled,
 .button[aria-disabled='true'] {
 	opacity: 0.55;
