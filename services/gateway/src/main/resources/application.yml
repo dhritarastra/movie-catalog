@@ -26,3 +26,7 @@ gateway:
   catalog-deadline: 2s
   media-upload-deadline: 30s
   media-download-deadline: 30s
+  # Uploads stream to media in chunks this size; gRPC's default message limit is 4 MiB.
+  media-upload-chunk-bytes: 65536 # 64 KiB
+  # A multipart GraphQL request (an upload) that has not finished by then fails.
+  multipart-timeout: 60s

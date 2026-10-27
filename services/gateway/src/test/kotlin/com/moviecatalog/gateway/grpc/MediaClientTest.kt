@@ -1,6 +1,6 @@
 package com.moviecatalog.gateway.grpc
 
-import com.moviecatalog.gateway.GatewayProperties
+import com.moviecatalog.gateway.config.GatewayProperties
 import com.moviecatalog.media.v1.Artwork
 import com.moviecatalog.media.v1.MediaServiceGrpc
 import com.moviecatalog.media.v1.UploadArtworkRequest
@@ -68,7 +68,7 @@ class MediaClientTest {
         return MediaClient(
             MediaServiceGrpc.newStub(channel),
             MediaServiceGrpc.newBlockingStub(channel),
-            GatewayProperties(5_242_880, Duration.ofSeconds(2), Duration.ofSeconds(10), Duration.ofSeconds(10)),
+            GatewayProperties(5_242_880, Duration.ofSeconds(2), Duration.ofSeconds(10), Duration.ofSeconds(10), 64 * 1024, Duration.ofSeconds(60)),
         )
     }
 

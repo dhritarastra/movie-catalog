@@ -1,8 +1,9 @@
 package com.moviecatalog.gateway.graphql
 
+/** The same default as `limit: Int = 20` in schema.graphqls, which is part of the API contract. */
 const val DEFAULT_PAGE_SIZE = 20
 
-/** `PageInput` as received. An explicit null offset or limit means the default, like an omitted one (DECISIONS D7). */
+/** `PageInput` as received. An explicit null offset or limit means the default, like an omitted one. */
 data class PageInput(val offset: Int?, val limit: Int?)
 
 /** The offset to send to the catalog. Out-of-range values are passed on for the catalog to reject, never adjusted. */

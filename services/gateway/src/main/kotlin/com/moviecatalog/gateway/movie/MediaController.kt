@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * Serves image bytes over plain HTTP GET (docs/DECISIONS.md, PLAN.md §3 decision 3): GraphQL
+ * Serves image bytes over plain HTTP GET, so images can be cached like any other: GraphQL
  * returns the URL, and the browser loads it like any image. Bytes are streamed from media over
  * gRPC straight into the response, one chunk at a time.
  *
