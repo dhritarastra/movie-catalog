@@ -36,8 +36,8 @@ type Movie {
   releaseDate: String
   runtimeMinutes: Int
   genres: [String!]!
-  "Null when the movie has no artwork; the UI shows a placeholder."
-  artworkUrl(variant: ArtworkVariant = FULL): String
+  "Null when the movie has no artwork; the UI shows a placeholder. Omitting variant means FULL."
+  artworkUrl(variant: ArtworkVariant! = FULL): String
   version: Int!
   cast: [Credit!]!
   creators: [Credit!]!

@@ -1,13 +1,18 @@
 package com.moviecatalog.gateway.graphql
 
 import com.google.protobuf.Any
+import com.google.protobuf.ByteString
 import com.google.rpc.BadRequest
 import com.google.rpc.Code
 import com.moviecatalog.catalog.v1.ListMoviesResponse
 import com.moviecatalog.catalog.v1.Movie
 import com.moviecatalog.gateway.grpc.CatalogClient
+import com.moviecatalog.gateway.grpc.MediaClient
 import com.moviecatalog.gateway.grpc.UploadSource
 import com.moviecatalog.gateway.movie.ArtworkUploader
+import com.moviecatalog.media.v1.ArtworkVariant
+import com.moviecatalog.media.v1.DownloadArtworkResponse
+import com.moviecatalog.media.v1.DownloadMetadata
 import com.ninjasquad.springmockk.MockkBean
 import io.grpc.Status
 import io.grpc.protobuf.StatusProto
@@ -23,15 +28,18 @@ import org.springframework.graphql.ExecutionGraphQlService
 import org.springframework.graphql.test.tester.ExecutionGraphQlServiceTester
 import org.springframework.mock.web.MockMultipartFile
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
 
 /**
- * The gateway's GraphQL surface with the downstream services mocked: multipart routing and
- * parsing over HTTP, and the mapping from gRPC failures to GraphQL error codes.
+ * The gateway's HTTP surface with the downstream services mocked: multipart routing and
+ * parsing, the mapping from gRPC failures to GraphQL error codes, and image downloads.
  */
 @SpringBootTest
 class GatewayHttpTest(
@@ -43,6 +51,9 @@ class GatewayHttpTest(
 
     @MockkBean
     private lateinit var uploader: ArtworkUploader
+
+    @MockkBean
+    private lateinit var media: MediaClient
 
     private val mvc: MockMvc = MockMvcBuilders.webAppContextSetup(context).build()
     private val graphQl = ExecutionGraphQlServiceTester.create(graphQlService)
@@ -82,9 +93,18 @@ class GatewayHttpTest(
             UPLOAD_OPERATION to """{"0": ["query"]}""",
             // map names a file part that was not sent
             UPLOAD_OPERATION to """{"1": ["variables.file"]}""",
-            // parts that are not JSON objects
+            // parts that are not JSON objects, including a literal null
             "not json" to """{"0": ["variables.file"]}""",
             UPLOAD_OPERATION to "[",
+            "null" to """{"0": ["variables.file"]}""",
+            UPLOAD_OPERATION to "null",
+            // a batch, which is not supported
+            "[$UPLOAD_OPERATION]" to """{"0": ["0.variables.file"]}""",
+            // an envelope without a usable query, or with wrongly typed fields
+            """{"variables": {"file": null}}""" to """{"0": ["variables.file"]}""",
+            """{"query": 5, "variables": {"file": null}}""" to """{"0": ["variables.file"]}""",
+            """{"query": "{ movies { totalCount } }", "variables": [null]}""" to """{"0": ["variables.0"]}""",
+            """{"query": "{ movies { totalCount } }", "operationName": 7}""" to "{}",
         )
         cases.forEach { (operations, map) ->
             mvc.perform(multipart("/graphql").file(poster).param("operations", operations).param("map", map))
@@ -164,6 +184,65 @@ class GatewayHttpTest(
 
         graphQl.document("""{ movie(id: "$MOVIE") { id } }""").execute().path("movie").valueIsNull()
     }
+
+    @Test
+    fun `artworkUrl defaults to the full image, honours THUMBNAIL and rejects an explicit null as a client error`() {
+        every { catalog.getMovie(MOVIE) } returns movie(version = 2, artworkId = ARTWORK)
+
+        graphQl.document("""{ movie(id: "$MOVIE") { artworkUrl } }""")
+            .execute().path("movie.artworkUrl").entity(String::class.java).isEqualTo("/media/$ARTWORK?variant=full")
+        graphQl.document("""{ movie(id: "$MOVIE") { artworkUrl(variant: THUMBNAIL) } }""")
+            .execute().path("movie.artworkUrl").entity(String::class.java).isEqualTo("/media/$ARTWORK?variant=thumb")
+        graphQl.document("""{ movie(id: "$MOVIE") { artworkUrl(variant: null) } }""")
+            .execute()
+            .errors().satisfy { errors ->
+                assertThat(errors.single().errorType.toString()).isEqualTo("ValidationError")
+            }
+    }
+
+    @Test
+    fun `an image download sends cache headers only with a successful body`() {
+        every { media.download(ARTWORK, ArtworkVariant.ARTWORK_VARIANT_THUMBNAIL) } returns
+            iterator {
+                yield(metadata())
+                yield(DownloadArtworkResponse.newBuilder().setChunk(ByteString.copyFrom(byteArrayOf(7, 8, 9))).build())
+            }
+
+        mvc.perform(get("/media/$ARTWORK").param("variant", "thumb"))
+            .andExpect(status().isOk)
+            .andExpect(header().string("Cache-Control", "public, max-age=31536000, immutable"))
+            .andExpect(header().string("ETag", "\"abc123-thumb\""))
+            .andExpect(content().bytes(byteArrayOf(7, 8, 9)))
+    }
+
+    @Test
+    fun `a download that fails after its metadata is answered with an uncached error`() {
+        every { media.download(ARTWORK, any()) } returns
+            iterator {
+                yield(metadata())
+                throw Status.INTERNAL.withDescription("The artwork could not be read").asRuntimeException()
+            }
+
+        mvc.perform(get("/media/$ARTWORK"))
+            .andExpect(status().isBadGateway)
+            .andExpect(header().string("Cache-Control", "no-store"))
+            .andExpect(header().doesNotExist("ETag"))
+    }
+
+    @Test
+    fun `a missing or unavailable image is never cached`() {
+        every { media.download("missing", any()) } returns iterator { throw Status.NOT_FOUND.asRuntimeException() }
+        every { media.download("slow", any()) } returns iterator { throw Status.DEADLINE_EXCEEDED.asRuntimeException() }
+
+        mvc.perform(get("/media/missing")).andExpect(status().isNotFound).andExpect(header().string("Cache-Control", "no-store"))
+        mvc.perform(get("/media/slow")).andExpect(status().isServiceUnavailable).andExpect(header().string("Cache-Control", "no-store"))
+        mvc.perform(get("/media/$ARTWORK").param("variant", "huge")).andExpect(status().isBadRequest)
+    }
+
+    private fun metadata() =
+        DownloadArtworkResponse.newBuilder()
+            .setMetadata(DownloadMetadata.newBuilder().setContentType("image/png").setSizeBytes(3).setSha256("abc123"))
+            .build()
 
     @Test
     fun `an omitted or null page limit means the default of 20`() {

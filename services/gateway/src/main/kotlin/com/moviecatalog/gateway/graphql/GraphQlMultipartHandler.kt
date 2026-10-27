@@ -68,9 +68,9 @@ class GraphQlMultipartHandler(
         val multipart = request.servletRequest() as? MultipartHttpServletRequest
             ?: return badRequest("Expected a multipart/form-data request")
         return try {
-            val body = parseObject(multipart.getParameter("operations"), "operations")
+            val body = parseOperations(multipart.getParameter("operations"))
             @Suppress("UNCHECKED_CAST")
-            val variables = (body["variables"] as? MutableMap<String, Any?>) ?: mutableMapOf<String, Any?>().also { body["variables"] = it }
+            val variables = (body["variables"] as MutableMap<String, Any?>?) ?: mutableMapOf<String, Any?>().also { body["variables"] = it }
 
             for ((part, paths) in parseObject(multipart.getParameter("map"), "map")) {
                 val file = multipart.getFile(part) ?: throw MultipartRequestException("The map refers to file part '$part', which was not sent")
@@ -103,11 +103,35 @@ class GraphQlMultipartHandler(
             .body(response.toMap())
     }
 
+    /**
+     * Checks the operation envelope the same way a JSON request body is checked, so nothing
+     * malformed reaches GraphQL execution: one operation (batches are not supported), a query
+     * string, and optional variables and operation name of the right types.
+     */
+    private fun parseOperations(json: String?): MutableMap<String, Any?> {
+        if (parseJson(json, "operations") is List<*>) {
+            throw MultipartRequestException("Batched operations are not supported; send one operation per request")
+        }
+        val body = parseObject(json, "operations")
+        if ((body["query"] as? String).isNullOrBlank()) throw MultipartRequestException("The 'operations' part must include a query")
+        if (body["variables"] != null && body["variables"] !is MutableMap<*, *>) {
+            throw MultipartRequestException("'variables' must be a JSON object")
+        }
+        if (body["operationName"] != null && body["operationName"] !is String) {
+            throw MultipartRequestException("'operationName' must be a string")
+        }
+        return body
+    }
+
+    /** A JSON object, rejecting anything else, including a literal `null`. */
     @Suppress("UNCHECKED_CAST")
-    private fun parseObject(json: String?, part: String): MutableMap<String, Any?> {
+    private fun parseObject(json: String?, part: String): MutableMap<String, Any?> =
+        parseJson(json, part) as? MutableMap<String, Any?> ?: throw MultipartRequestException("The '$part' part must be a JSON object")
+
+    private fun parseJson(json: String?, part: String): Any? {
         if (json == null) throw MultipartRequestException("The '$part' part is required")
         return try {
-            jsonMapper.readValue(json, MutableMap::class.java) as MutableMap<String, Any?>
+            jsonMapper.readValue(json, Any::class.java)
         } catch (e: JacksonException) {
             throw MultipartRequestException("The '$part' part must be a JSON object")
         }
