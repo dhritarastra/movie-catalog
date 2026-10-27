@@ -66,6 +66,17 @@ class ImageInspectorTest {
     }
 
     @Test
+    fun `rejects truncated JPEGs, which the decoder would otherwise fill in with grey`() {
+        val jpeg = TestImages.jpeg(300, 300, noise = true)
+
+        listOf(jpeg.size / 2, jpeg.size - 2).forEach { length ->
+            val error = assertThrows<InvalidArtworkException> { inspector.inspect(file(jpeg.copyOf(length))) }
+            assertThat(error.message).describedAs("cut to $length of ${jpeg.size} bytes").contains("corrupt")
+        }
+        inspector.inspect(file(jpeg))
+    }
+
+    @Test
     fun `thumbnails wide images to the target width keeping the aspect ratio`() {
         val wide = inspector.inspect(file(TestImages.png(1000, 500)))
 

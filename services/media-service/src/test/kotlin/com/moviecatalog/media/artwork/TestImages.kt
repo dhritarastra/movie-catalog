@@ -12,7 +12,8 @@ import javax.imageio.ImageIO
 object TestImages {
     fun png(width: Int, height: Int, noise: Boolean = false): ByteArray = encode(image(width, height, noise, BufferedImage.TYPE_INT_ARGB), "png")
 
-    fun jpeg(width: Int, height: Int): ByteArray = encode(image(width, height, false, BufferedImage.TYPE_INT_RGB), "jpeg")
+    fun jpeg(width: Int, height: Int, noise: Boolean = false): ByteArray =
+        encode(image(width, height, noise, BufferedImage.TYPE_INT_RGB), "jpeg")
 
     /**
      * A tiny file whose PNG header claims [width] x [height]. Decoding it would try to allocate

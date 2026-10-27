@@ -26,12 +26,16 @@ class InspectedImage(val format: ImageFormat, val image: BufferedImage)
  *    so SVG, GIF and renamed files are rejected;
  * 2. width and height are read from the header and checked *before* decoding, because a small
  *    file can declare enormous dimensions and exhaust memory while its pixels are decoded;
- * 3. only then is the image fully decoded, which rejects corrupt or truncated files.
+ * 3. only then is the image fully decoded, which rejects corrupt or truncated files. The JPEG
+ *    decoder does not fail on a truncated file: it fills the missing area with grey and only
+ *    reports a warning ("Premature end of JPEG file"), so any decoder warning is treated as damage.
  */
 class ImageInspector(private val maxWidth: Int, private val maxHeight: Int) {
     fun inspect(file: Path): InspectedImage {
         val format = detectFormat(file) ?: throw InvalidArtworkException("Only JPEG and PNG images are supported")
         val reader = ImageIO.getImageReadersByFormatName(format.imageIoName).next()
+        val warnings = mutableListOf<String>()
+        reader.addIIOReadWarningListener { _, warning -> warnings += warning }
         try {
             ImageIO.createImageInputStream(file.toFile()).use { input ->
                 reader.setInput(input, true, true)
@@ -40,6 +44,9 @@ class ImageInspector(private val maxWidth: Int, private val maxHeight: Int) {
                     reader.read(0)
                 } catch (e: IOException) {
                     throw InvalidArtworkException("The image could not be decoded; it may be corrupt")
+                }
+                if (warnings.isNotEmpty()) {
+                    throw InvalidArtworkException("The image is damaged or incomplete; it may be corrupt (${warnings.first()})")
                 }
                 return InspectedImage(format, image)
             }

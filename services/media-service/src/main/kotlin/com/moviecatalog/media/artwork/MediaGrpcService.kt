@@ -1,6 +1,5 @@
 package com.moviecatalog.media.artwork
 
-import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.moviecatalog.media.v1.DeleteArtworkRequest
 import com.moviecatalog.media.v1.DeleteArtworkResponse
@@ -11,10 +10,12 @@ import com.moviecatalog.media.v1.MediaServiceGrpc
 import com.moviecatalog.media.v1.UploadArtworkRequest
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.stub.ServerCallStreamObserver
 import io.grpc.stub.StreamObserver
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.util.UUID
 import com.moviecatalog.media.v1.Artwork as ArtworkProto
 import com.moviecatalog.media.v1.ArtworkVariant as ArtworkVariantProto
@@ -34,26 +35,24 @@ class MediaGrpcService(
 
     override fun downloadArtwork(request: DownloadArtworkRequest, responseObserver: StreamObserver<DownloadArtworkResponse>) {
         val variant = if (request.variant == ArtworkVariantProto.ARTWORK_VARIANT_THUMBNAIL) ArtworkVariant.THUMBNAIL else ArtworkVariant.FULL
-        val file = artwork.open(parseId(request.id), variant)
-        responseObserver.onNext(
-            DownloadArtworkResponse.newBuilder()
-                .setMetadata(
-                    DownloadMetadata.newBuilder()
-                        .setContentType(file.artwork.format.contentType)
-                        .setSizeBytes(file.sizeBytes)
-                        .setSha256(file.artwork.sha256),
-                )
-                .build(),
-        )
-        Files.newInputStream(file.path).use { input ->
-            val buffer = ByteArray(CHUNK_BYTES)
-            while (true) {
-                val read = input.read(buffer)
-                if (read < 0) break
-                responseObserver.onNext(DownloadArtworkResponse.newBuilder().setChunk(ByteString.copyFrom(buffer, 0, read)).build())
-            }
+        val id = parseId(request.id)
+        val file = artwork.open(id, variant)
+        // Opened before anything is sent, so a missing or unreadable file fails the whole call
+        // cleanly rather than part-way through a response the gateway has started relaying.
+        val input = try {
+            Files.newInputStream(file.path)
+        } catch (e: NoSuchFileException) {
+            throw ArtworkNotFoundException("Artwork $id not found")
         }
-        responseObserver.onCompleted()
+        val metadata = DownloadArtworkResponse.newBuilder()
+            .setMetadata(
+                DownloadMetadata.newBuilder()
+                    .setContentType(file.artwork.format.contentType)
+                    .setSizeBytes(file.sizeBytes)
+                    .setSha256(file.artwork.sha256),
+            )
+            .build()
+        ChunkedDownload(responseObserver as ServerCallStreamObserver<DownloadArtworkResponse>, metadata, input).start()
     }
 
     override fun deleteArtwork(request: DeleteArtworkRequest, responseObserver: StreamObserver<DeleteArtworkResponse>) {
