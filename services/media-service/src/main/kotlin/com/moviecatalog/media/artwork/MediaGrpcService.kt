@@ -1,6 +1,7 @@
 package com.moviecatalog.media.artwork
 
 import com.google.protobuf.Timestamp
+import com.moviecatalog.media.config.MediaProperties
 import com.moviecatalog.media.v1.DeleteArtworkRequest
 import com.moviecatalog.media.v1.DeleteArtworkResponse
 import com.moviecatalog.media.v1.DownloadArtworkRequest
@@ -52,7 +53,7 @@ class MediaGrpcService(
                     .setSha256(file.artwork.sha256),
             )
             .build()
-        ChunkedDownload(responseObserver as ServerCallStreamObserver<DownloadArtworkResponse>, metadata, input).start()
+        ChunkedDownload(responseObserver as ServerCallStreamObserver<DownloadArtworkResponse>, metadata, input, properties.downloadChunkBytes).start()
     }
 
     override fun deleteArtwork(request: DeleteArtworkRequest, responseObserver: StreamObserver<DeleteArtworkResponse>) {
@@ -70,10 +71,6 @@ class MediaGrpcService(
             log.error("Upload failed", e)
             Status.INTERNAL.withDescription("The upload could not be stored").asException()
         }
-
-    companion object {
-        const val CHUNK_BYTES = 64 * 1024
-    }
 }
 
 fun Artwork.toProto(): ArtworkProto =

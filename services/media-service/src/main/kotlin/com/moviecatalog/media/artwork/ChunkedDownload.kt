@@ -19,7 +19,7 @@ class ChunkedDownload(
     private val call: ServerCallStreamObserver<DownloadArtworkResponse>,
     private val metadata: DownloadArtworkResponse,
     private val input: InputStream,
-    chunkBytes: Int = MediaGrpcService.CHUNK_BYTES,
+    chunkBytes: Int,
 ) {
     private val buffer = ByteArray(chunkBytes)
     private var metadataSent = false

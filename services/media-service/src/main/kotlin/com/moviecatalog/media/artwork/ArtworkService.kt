@@ -1,13 +1,12 @@
 package com.moviecatalog.media.artwork
 
+import com.moviecatalog.media.config.MediaProperties
 import org.slf4j.LoggerFactory
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
-
-/** A stored file ready to stream: the metadata row plus the path of the requested variant. */
-class StoredFile(val artwork: Artwork, val path: Path, val sizeBytes: Long)
 
 @Service
 class ArtworkService(
@@ -29,7 +28,8 @@ class ArtworkService(
             val id = UUID.randomUUID()
             storage.store(id, upload, ImageInspector.thumbnail(inspected, properties.thumbnailWidth), inspected.format)
             try {
-                return repository.insert(id, inspected.format, sizeBytes, inspected.image.width, inspected.image.height, sha256)
+                // save() merges because the id is assigned, so Hibernate first checks that no such row exists.
+                return repository.save(Artwork(id, inspected.format, sizeBytes, inspected.image.width, inspected.image.height, sha256))
             } catch (e: RuntimeException) {
                 storage.delete(id)
                 throw e
@@ -40,7 +40,7 @@ class ArtworkService(
     }
 
     fun open(id: UUID, variant: ArtworkVariant): StoredFile {
-        val artwork = repository.findById(id) ?: throw ArtworkNotFoundException("Artwork $id not found")
+        val artwork = repository.findByIdOrNull(id) ?: throw ArtworkNotFoundException("Artwork $id not found")
         val path = storage.path(id, variant, artwork.format)
         if (!Files.exists(path)) {
             log.error("Artwork {} has a metadata row but no {} file at {}", id, variant, path)
@@ -51,7 +51,7 @@ class ArtworkService(
 
     /** Safe to repeat: deleting missing artwork succeeds and reports that nothing existed. */
     fun delete(id: UUID): Boolean {
-        val existed = repository.delete(id)
+        val existed = repository.removeById(id) > 0
         storage.delete(id)
         return existed
     }
