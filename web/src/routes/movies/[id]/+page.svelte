@@ -29,6 +29,10 @@
 		const movieId = id;
 		void attempt;
 		const controller = new AbortController();
+		// Back/Forward can reuse this component for another ID while an action is pending.
+		confirming = null;
+		busy = false;
+		confirmError = null;
 		view = { status: 'loading' };
 		request(MovieQuery, { id: movieId }, { signal: controller.signal })
 			.then(
@@ -71,7 +75,7 @@
 		try {
 			if (confirming === 'delete') {
 				await request(DeleteMovieMutation, { id: movie.id, version: movie.version });
-				confirming = null;
+				if (stillHere()) confirming = null;
 				showToast('success', `“${movie.title}” was deleted.`);
 				if (stillHere()) await goto(resolve('/movies'));
 			} else {
@@ -79,28 +83,28 @@
 					movieId: movie.id,
 					version: movie.version
 				});
-				confirming = null;
+				if (stillHere()) confirming = null;
 				if (stillHere()) view = { status: 'ready', movie: removeArtwork };
 				showToast('success', 'Artwork removed.');
 			}
 		} catch (error) {
+			if (!stillHere()) {
+				showToast('error', `Movie action for “${movie.title}”: ${describeError(error)}`);
+				return;
+			}
 			if (error instanceof GraphQlRequestError && error.code === 'CONFLICT') {
 				confirming = null;
-				if (stillHere()) {
-					// Nothing was changed. Show the latest version so the user decides again knowingly.
-					attempt++;
-					showToast(
-						'error',
-						'Someone else changed this movie, so nothing was done. This is the latest version; try again if you still want to.'
-					);
-				} else {
-					showToast('error', `Someone else changed “${movie.title}”, so nothing was done.`);
-				}
+				// Nothing was changed. Show the latest version so the user decides again knowingly.
+				attempt++;
+				showToast(
+					'error',
+					'Someone else changed this movie, so nothing was done. This is the latest version; try again if you still want to.'
+				);
 			} else {
 				confirmError = describeError(error);
 			}
 		} finally {
-			busy = false;
+			if (stillHere()) busy = false;
 		}
 	}
 </script>

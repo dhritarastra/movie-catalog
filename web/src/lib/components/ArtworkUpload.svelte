@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { trackVisit } from '#lib/navigation.ts';
+	import { showToast } from '#lib/toasts.svelte.ts';
 	import { describeError, GraphQlRequestError } from '#lib/graphql/client.ts';
 	import type { MovieDetailFieldsFragment } from '#lib/graphql/generated/graphql.ts';
 	import {
@@ -30,6 +32,7 @@
 	let fileError = $state<string | null>(null);
 	let phase = $state<Phase>({ name: 'idle' });
 	let handle: UploadHandle | null = null;
+	const visit = trackVisit();
 
 	const previewUrl = $derived(file ? URL.createObjectURL(file) : null);
 	$effect(() => {
@@ -61,20 +64,31 @@
 
 	async function start() {
 		if (!file || busy) return;
+		const stillHere = visit.mark();
 		phase = { name: 'uploading', progress: 0 };
 		handle = uploadArtwork(movieId, version, file, {
 			onProgress: (progress) => {
-				if (phase.name === 'uploading') phase = { name: 'uploading', progress };
+				if (stillHere() && phase.name === 'uploading') phase = { name: 'uploading', progress };
 			},
-			onProcessing: () => (phase = { name: 'processing' })
+			onProcessing: () => {
+				if (stillHere()) phase = { name: 'processing' };
+			}
 		});
 		try {
 			const movie = await handle.result;
+			if (!stillHere()) {
+				showToast('success', 'Artwork updated.');
+				return;
+			}
 			file = null;
 			if (input) input.value = '';
 			phase = { name: 'idle' };
 			onUploaded(movie);
 		} catch (error) {
+			if (!stillHere()) {
+				showToast('error', `Artwork upload: ${describeError(error)}`);
+				return;
+			}
 			if (error instanceof DOMException && error.name === 'AbortError') {
 				phase = { name: 'idle' };
 			} else {
@@ -86,7 +100,7 @@
 				};
 			}
 		} finally {
-			handle = null;
+			if (stillHere()) handle = null;
 		}
 	}
 </script>

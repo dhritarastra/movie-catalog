@@ -52,8 +52,13 @@ class Movie(
     var updatedAt: Instant = createdAt
         protected set
 
+    /**
+     * Mark an accepted mutation even when its submitted values are unchanged. Making the
+     * timestamp dirty causes Hibernate to issue one version-checked UPDATE on flush.
+     * Keep it distinct at Postgres microsecond precision even for two immediate writes.
+     */
     @PreUpdate
-    protected fun touch() {
-        updatedAt = currentTimestamp()
+    fun markUpdated() {
+        updatedAt = maxOf(currentTimestamp(), updatedAt.plusNanos(1_000))
     }
 }

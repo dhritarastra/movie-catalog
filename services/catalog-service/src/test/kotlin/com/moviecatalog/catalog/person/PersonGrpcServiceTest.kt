@@ -73,7 +73,7 @@ class PersonGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
     }
 
     @Test
-    fun `lists alphabetically ignoring case and accents, keeps people who share a name, and pages stably`() {
+    fun `lists alphabetically with ICU, keeps people who share a name, and pages stably`() {
         listOf("denis Villeneuve", "Amy Adams", "Jeremy Renner", "Émile Hirsch", "Amy Adams")
             .forEach { create(PersonFields.newBuilder().setName(it)) }
 
@@ -172,6 +172,18 @@ class PersonGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
         people.deletePerson(delete(person.id, version = 2))
         val again = assertThrows<StatusRuntimeException> { people.deletePerson(delete(person.id, version = 2)) }
         assertThat(again.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    }
+
+    @Test
+    fun `saving identical fields still advances the version and rejects the old version`() {
+        val fields = PersonFields.newBuilder().setName("Amy Adams")
+        val person = create(fields)
+        val saved = people.updatePerson(update(person.id, person.version, fields))
+
+        assertThat(saved.version).isEqualTo(2)
+        assertThat(get(person.id).version).isEqualTo(2)
+        val stale = assertThrows<StatusRuntimeException> { people.updatePerson(update(person.id, person.version, fields)) }
+        assertThat(stale.status.code).isEqualTo(Status.Code.ABORTED)
     }
 
     private fun create(fields: PersonFields.Builder): PersonProto =

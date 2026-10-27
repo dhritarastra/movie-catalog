@@ -97,6 +97,11 @@ test('create, edit and delete a movie with artwork, and a person, with failures 
 		await expect(page.getByLabel('Title')).toBeDisabled();
 		await expect(page.getByLabel('Runtime (minutes)')).toBeDisabled();
 		await expect(page.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+		// A fragment change leaves this form on screen and must not invalidate the save.
+		await page.evaluate(() => {
+			location.hash = 'saving';
+		});
+		await expect(page).toHaveURL(/#saving$/);
 		save.release();
 
 		await expect(page.getByText('Changes saved.')).toBeVisible();
@@ -144,6 +149,11 @@ test('create, edit and delete a movie with artwork, and a person, with failures 
 		// The save itself went through.
 		await page.getByRole('link', { name: new RegExp(title) }).click();
 		await expect(page.getByRole('list', { name: 'Genres' })).toContainText('Thriller');
+	});
+
+	await test.step('late movie save failures notify without touching a new draft', async () => {
+		await checkLateSaveFailures(page, 'movie', `${title} (changed elsewhere)`);
+		await checkPendingDeleteNavigation(page, 'movie', `${title} (changed elsewhere)`);
 	});
 
 	await test.step('removing the artwork asks first, then shows the placeholder', async () => {
@@ -223,6 +233,11 @@ test('create, edit and delete a movie with artwork, and a person, with failures 
 		await expect(page.getByText('Born 3 October 1967')).toBeVisible();
 	});
 
+	await test.step('late person save failures notify without touching a new draft', async () => {
+		await checkLateSaveFailures(page, 'person', editedPerson);
+		await checkPendingDeleteNavigation(page, 'person', editedPerson);
+	});
+
 	await test.step('deleting the person asks first, then removes them from the list', async () => {
 		await page.getByRole('button', { name: 'Delete', exact: true }).click();
 		await page
@@ -265,10 +280,14 @@ async function renameElsewhere(page: Page, id: string, newTitle: string) {
 
 /**
  * Delays the answer to the next `operation` request, as a slow connection would. The request
- * reaches the server at once, so the change is made; the page receives the response only when
- * `release()` is called. `answered` resolves once the server has replied.
+ * reaches the server at once unless an error response is supplied. The page receives the
+ * response only when `release()` is called. `answered` resolves once that response is ready.
  */
-async function holdResponse(page: Page, operation: string) {
+async function holdResponse(
+	page: Page,
+	operation: string,
+	error?: { code: string; fieldErrors?: { field: string; message: string }[] }
+) {
 	let release!: () => void;
 	const released = new Promise<void>((resolve) => (release = resolve));
 	let markAnswered!: () => void;
@@ -278,12 +297,103 @@ async function holdResponse(page: Page, operation: string) {
 	await page.route('**/graphql', async (route) => {
 		if (matched || operationName(route.request()) !== operation) return route.fallback();
 		matched = true;
-		const response = await route.fetch();
+		// Error cases inject a delayed server response without changing the fixture on the server.
+		const response = error ? undefined : await route.fetch();
 		markAnswered();
 		await released;
-		await route.fulfill({ response });
+		if (error) {
+			await route.fulfill({
+				json: { data: null, errors: [{ message: 'Review validation failure', extensions: error }] }
+			});
+		} else {
+			await route.fulfill({ response });
+		}
 	});
 	return { answered, release };
+}
+
+/** Browser Back/Forward can reuse a detail component even while its modal blocks links. */
+async function checkPendingDeleteNavigation(page: Page, entity: 'movie' | 'person', name: string) {
+	const path = entity === 'movie' ? 'movies' : 'people';
+	const missing = `/${path}/00000000-0000-0000-0000-000000000000`;
+	// Seed a same-route history entry through SvelteKit's normal link interception.
+	await page.evaluate((href) => {
+		const link = document.createElement('a');
+		link.href = href;
+		document.body.append(link);
+		link.click();
+		link.remove();
+	}, missing);
+	await expect(page).toHaveURL(new RegExp(missing + '$'));
+	await expect(page.getByRole('heading', { name: /not found/i })).toBeVisible();
+	await page.goBack();
+	await expect(page.getByRole('heading', { name, exact: true, level: 1 })).toBeVisible();
+	const pending = await holdResponse(page, entity === 'movie' ? 'DeleteMovie' : 'DeletePerson', {
+		code: 'SERVICE_UNAVAILABLE'
+	});
+	await page.getByRole('button', { name: 'Delete', exact: true }).click();
+	await page
+		.getByRole('dialog')
+		.getByRole('button', { name: `Delete ${entity}`, exact: true })
+		.click();
+	await pending.answered;
+	await page.goForward();
+	await expect(page).toHaveURL(new RegExp(missing + '$'));
+	await page.goBack();
+	await expect(page.getByRole('heading', { name, exact: true, level: 1 })).toBeVisible();
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+	pending.release();
+	const toast = page
+		.getByRole('status')
+		.filter({ hasText: name })
+		.filter({ hasText: 'check whether your change was saved' });
+	await expect(toast).toBeVisible();
+	await toast.getByRole('button', { name: 'Dismiss' }).click();
+	await page.getByRole('button', { name: 'Delete', exact: true }).click();
+	await expect(
+		page.getByRole('dialog').getByRole('button', { name: `Delete ${entity}`, exact: true })
+	).toBeEnabled();
+	await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
+}
+
+/** Both forms must ignore departed-page failures, while still explaining the save outcome. */
+async function checkLateSaveFailures(page: Page, entity: 'movie' | 'person', name: string) {
+	const movie = entity === 'movie';
+	for (const code of ['BAD_REQUEST', 'SERVICE_UNAVAILABLE']) {
+		await page.getByRole('link', { name: 'Edit', exact: true }).click();
+		await expect(page.getByLabel(movie ? 'Title' : 'Name')).toHaveValue(name);
+		const save = await holdResponse(page, movie ? 'UpdateMovie' : 'UpdatePerson', {
+			code,
+			fieldErrors:
+				code === 'BAD_REQUEST'
+					? [{ field: movie ? 'title' : 'name', message: 'Review validation failure' }]
+					: undefined
+		});
+		await page.getByRole('button', { name: 'Save changes' }).click();
+		await save.answered;
+		await page.getByRole('link', { name: 'Cancel', exact: true }).click();
+		await page.getByRole('link', { name: movie ? '← All movies' : '← All people' }).click();
+		await page.getByRole('link', { name: movie ? 'Add movie' : 'Add person', exact: true }).click();
+		const draft = page.getByLabel(movie ? 'Synopsis' : 'Biography');
+		await draft.fill('An unrelated draft');
+		await expect(draft).toBeFocused();
+		save.release();
+
+		const toast = page.getByRole('status').filter({ hasText: `Save for “${name}”:` });
+		await expect(toast).toContainText(
+			code === 'BAD_REQUEST' ? 'Review validation failure' : 'check whether your change was saved'
+		);
+		await expect(draft).toBeFocused();
+		await expect(draft).toHaveValue('An unrelated draft');
+		await expect(page.getByRole('alert')).toHaveCount(0);
+		await expect(page).toHaveURL(movie ? /\/movies\/new$/ : /\/people\/new$/);
+		await toast.getByRole('button', { name: 'Dismiss' }).click();
+		await page.getByRole('link', { name: 'Cancel', exact: true }).click();
+		await page
+			.getByRole('link', { name: new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) })
+			.click();
+		await expect(page.getByRole('heading', { name, exact: true, level: 1 })).toBeVisible();
+	}
 }
 
 /** "UpdateMovie" for a JSON request whose query starts `mutation UpdateMovie(`; null otherwise. */
