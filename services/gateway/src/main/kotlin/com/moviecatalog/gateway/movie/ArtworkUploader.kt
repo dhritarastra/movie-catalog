@@ -31,6 +31,7 @@ import org.springframework.stereotype.Component
 class ArtworkUploader(
     private val catalog: CatalogClient,
     private val media: MediaClient,
+    private val cleaner: ArtworkCleaner,
     private val properties: GatewayProperties,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -48,7 +49,7 @@ class ArtworkUploader(
             catalog.setArtwork(movieId, expectedVersion, artwork.id)
         } catch (e: StatusRuntimeException) {
             if (e.status.code in DEFINITE_REJECTIONS) {
-                deleteQuietly(artwork.id, "the catalog rejected attaching it to movie $movieId (${e.status.code})")
+                cleaner.deleteQuietly(artwork.id, "the catalog rejected attaching it to movie $movieId (${e.status.code})")
             } else {
                 log.warn(
                     "Outcome unknown attaching artwork {} to movie {} ({}); keeping the file in case the attach committed",
@@ -58,17 +59,8 @@ class ArtworkUploader(
             throw e
         }
 
-        if (change.hasPreviousArtworkId()) deleteQuietly(change.previousArtworkId, "it was replaced on movie $movieId")
+        if (change.hasPreviousArtworkId()) cleaner.deleteQuietly(change.previousArtworkId, "it was replaced on movie $movieId")
         return change.movie
-    }
-
-    /** Best effort: a failed delete leaves an orphaned file, which is logged rather than failing the request. */
-    private fun deleteQuietly(artworkId: String, reason: String) {
-        try {
-            media.delete(artworkId)
-        } catch (e: StatusRuntimeException) {
-            log.warn("Could not delete artwork {} after {}: {}", artworkId, reason, e.status)
-        }
     }
 
     companion object {

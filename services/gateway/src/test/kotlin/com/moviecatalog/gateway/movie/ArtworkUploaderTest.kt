@@ -27,6 +27,7 @@ class ArtworkUploaderTest {
     private val uploader = ArtworkUploader(
         catalog,
         media,
+        ArtworkCleaner(media),
         GatewayProperties(MAX_BYTES, Duration.ofSeconds(2), Duration.ofSeconds(30), Duration.ofSeconds(30)),
     )
     private val source = UploadSource("image/png", 100, "poster.png") { ByteArray(100).inputStream() }
