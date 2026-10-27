@@ -2,13 +2,16 @@ package com.moviecatalog.catalog.movie
 
 import com.google.rpc.BadRequest
 import com.moviecatalog.catalog.TestcontainersConfiguration
+import com.moviecatalog.catalog.v1.ClearArtworkRequest
 import com.moviecatalog.catalog.v1.CreateMovieRequest
+import com.moviecatalog.catalog.v1.DeleteMovieRequest
 import com.moviecatalog.catalog.v1.GetMovieRequest
 import com.moviecatalog.catalog.v1.ListMoviesRequest
 import com.moviecatalog.catalog.v1.MovieFields
 import com.moviecatalog.catalog.v1.MovieServiceGrpc
 import com.moviecatalog.catalog.v1.PageRequest
 import com.moviecatalog.catalog.v1.SetArtworkRequest
+import com.moviecatalog.catalog.v1.UpdateMovieRequest
 import io.grpc.ManagedChannel
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -157,6 +160,116 @@ class MovieGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
         }
         assertThat(unknown.status.code).isEqualTo(Status.Code.NOT_FOUND)
     }
+
+    @Test
+    fun `an update replaces every editable field, keeps the artwork and bumps the version`() {
+        val movie = create(
+            MovieFields.newBuilder().setTitle("Arrival").setSynopsis("Heptapods.").setRuntimeMinutes(116).addAllGenres(listOf("Sci-Fi")),
+        )
+        val artwork = UUID.randomUUID().toString()
+        movies.setArtwork(setArtwork(movie.id, version = 1, artworkId = artwork))
+
+        // Only the title is sent: synopsis and runtime are cleared, and the empty list clears the genres.
+        val updated = movies.updateMovie(update(movie.id, version = 2, MovieFields.newBuilder().setTitle("  Arrival (2016) ")))
+
+        assertThat(updated.title).isEqualTo("Arrival (2016)")
+        assertThat(updated.hasSynopsis()).isFalse()
+        assertThat(updated.hasRuntimeMinutes()).isFalse()
+        assertThat(updated.genresList).isEmpty()
+        assertThat(updated.artworkId).isEqualTo(artwork)
+        assertThat(updated.version).isEqualTo(3)
+    }
+
+    @Test
+    fun `an update from a stale version is a conflict and changes nothing`() {
+        val movie = create(MovieFields.newBuilder().setTitle("Arrival"))
+        movies.updateMovie(update(movie.id, version = 1, MovieFields.newBuilder().setTitle("First edit")))
+
+        val error = assertThrows<StatusRuntimeException> {
+            movies.updateMovie(update(movie.id, version = 1, MovieFields.newBuilder().setTitle("Second edit")))
+        }
+
+        assertThat(error.status.code).isEqualTo(Status.Code.ABORTED)
+        assertThat(error.status.description).contains("version 2, not 1")
+        assertThat(get(movie.id).title).isEqualTo("First edit")
+    }
+
+    @Test
+    fun `an update reports invalid fields, an omitted version and an unknown movie`() {
+        val movie = create(MovieFields.newBuilder().setTitle("Arrival"))
+
+        val invalid = assertThrows<StatusRuntimeException> {
+            movies.updateMovie(update(movie.id, version = 1, MovieFields.newBuilder().setTitle(" ").setRuntimeMinutes(0)))
+        }
+        assertThat(badRequestFields(invalid)).containsExactly("title", "runtime_minutes")
+
+        val omitted = assertThrows<StatusRuntimeException> {
+            movies.updateMovie(update(movie.id, version = 0, MovieFields.newBuilder().setTitle("Edit")))
+        }
+        assertThat(badRequestFields(omitted)).containsExactly("expected_version")
+
+        val unknown = assertThrows<StatusRuntimeException> {
+            movies.updateMovie(update(UUID.randomUUID().toString(), version = 1, MovieFields.newBuilder().setTitle("Edit")))
+        }
+        assertThat(unknown.status.code).isEqualTo(Status.Code.NOT_FOUND)
+        assertThat(get(movie.id).version).isEqualTo(1)
+    }
+
+    @Test
+    fun `deleting returns the artwork it had, so the gateway can delete the file`() {
+        val withArtwork = create(MovieFields.newBuilder().setTitle("Arrival"))
+        val artwork = UUID.randomUUID().toString()
+        movies.setArtwork(setArtwork(withArtwork.id, version = 1, artworkId = artwork))
+        val withoutArtwork = create(MovieFields.newBuilder().setTitle("Dune"))
+
+        val first = movies.deleteMovie(delete(withArtwork.id, version = 2))
+        val second = movies.deleteMovie(delete(withoutArtwork.id, version = 1))
+
+        assertThat(first.id).isEqualTo(withArtwork.id)
+        assertThat(first.artworkId).isEqualTo(artwork)
+        assertThat(second.hasArtworkId()).isFalse()
+        val gone = assertThrows<StatusRuntimeException> { get(withArtwork.id) }
+        assertThat(gone.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    }
+
+    @Test
+    fun `deleting from a stale version keeps the movie, and deleting twice reports it gone`() {
+        val movie = create(MovieFields.newBuilder().setTitle("Arrival"))
+        movies.updateMovie(update(movie.id, version = 1, MovieFields.newBuilder().setTitle("Edited")))
+
+        val stale = assertThrows<StatusRuntimeException> { movies.deleteMovie(delete(movie.id, version = 1)) }
+        assertThat(stale.status.code).isEqualTo(Status.Code.ABORTED)
+        assertThat(get(movie.id).title).isEqualTo("Edited")
+
+        movies.deleteMovie(delete(movie.id, version = 2))
+        val again = assertThrows<StatusRuntimeException> { movies.deleteMovie(delete(movie.id, version = 2)) }
+        assertThat(again.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    }
+
+    @Test
+    fun `clearing artwork returns what was removed and bumps the version`() {
+        val movie = create(MovieFields.newBuilder().setTitle("Arrival"))
+        val artwork = UUID.randomUUID().toString()
+        movies.setArtwork(setArtwork(movie.id, version = 1, artworkId = artwork))
+
+        val cleared = movies.clearArtwork(clear(movie.id, version = 2))
+
+        assertThat(cleared.previousArtworkId).isEqualTo(artwork)
+        assertThat(cleared.movie.hasArtworkId()).isFalse()
+        assertThat(cleared.movie.version).isEqualTo(3)
+
+        val stale = assertThrows<StatusRuntimeException> { movies.clearArtwork(clear(movie.id, version = 2)) }
+        assertThat(stale.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+    private fun get(id: String): MovieProto = movies.getMovie(GetMovieRequest.newBuilder().setId(id).build())
+
+    private fun update(id: String, version: Int, fields: MovieFields.Builder) =
+        UpdateMovieRequest.newBuilder().setId(id).setExpectedVersion(version).setFields(fields).build()
+
+    private fun delete(id: String, version: Int) = DeleteMovieRequest.newBuilder().setId(id).setExpectedVersion(version).build()
+
+    private fun clear(id: String, version: Int) = ClearArtworkRequest.newBuilder().setMovieId(id).setExpectedVersion(version).build()
 
     private fun create(fields: MovieFields.Builder): MovieProto =
         movies.createMovie(CreateMovieRequest.newBuilder().setFields(fields).build())

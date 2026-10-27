@@ -37,5 +37,8 @@ data class MovieDraft(
 
 data class MoviePage(val movies: List<Movie>, val totalCount: Int)
 
-/** Result of attaching artwork: the updated movie and the artwork it replaced, if any. */
+/** Result of attaching or removing artwork: the updated movie and the artwork it replaced, if any. */
 data class ArtworkChange(val movie: Movie, val previousArtworkId: UUID?)
+
+/** A deleted movie's ID and the artwork it had, which the gateway then deletes from media. */
+data class DeletedMovie(val id: UUID, val artworkId: UUID?)

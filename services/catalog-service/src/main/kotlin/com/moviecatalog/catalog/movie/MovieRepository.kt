@@ -45,6 +45,45 @@ class MovieRepository(private val jdbc: JdbcClient) {
 
     fun count(): Int = jdbc.sql("SELECT count(*) FROM movie").query(Int::class.java).single()
 
+    fun findVersion(id: UUID): Int? =
+        jdbc.sql("SELECT version FROM movie WHERE id = :id")
+            .param("id", id)
+            .query(Int::class.java)
+            .optional()
+            .orElse(null)
+
+    /** Replaces every editable field, only if the stored version still matches. Null when no row matched. */
+    fun update(id: UUID, expectedVersion: Int, draft: MovieDraft): Movie? =
+        jdbc.sql(
+            """
+            UPDATE movie
+            SET title = :title, synopsis = :synopsis, release_date = :releaseDate,
+                runtime_minutes = :runtimeMinutes, genres = :genres,
+                version = version + 1, updated_at = now()
+            WHERE id = :id AND version = :expectedVersion
+            RETURNING *
+            """,
+        )
+            .param("id", id)
+            .param("expectedVersion", expectedVersion)
+            .param("title", draft.title)
+            .param("synopsis", draft.synopsis)
+            .param("releaseDate", draft.releaseDate)
+            .param("runtimeMinutes", draft.runtimeMinutes)
+            .param("genres", draft.genres.toTypedArray())
+            .query { rs, _ -> rs.toMovie() }
+            .optional()
+            .orElse(null)
+
+    /** Deletes only if the stored version still matches. Null when no row matched. */
+    fun delete(id: UUID, expectedVersion: Int): DeletedMovie? =
+        jdbc.sql("DELETE FROM movie WHERE id = :id AND version = :expectedVersion RETURNING id, artwork_id")
+            .param("id", id)
+            .param("expectedVersion", expectedVersion)
+            .query { rs, _ -> DeletedMovie(rs.getObject("id", UUID::class.java), rs.getObject("artwork_id", UUID::class.java)) }
+            .optional()
+            .orElse(null)
+
     /** Locks the row for the rest of the transaction, so its version and artwork cannot change underneath. */
     fun lockArtworkState(id: UUID): ArtworkState? =
         jdbc.sql("SELECT version, artwork_id FROM movie WHERE id = :id FOR UPDATE")
