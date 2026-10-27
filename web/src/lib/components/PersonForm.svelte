@@ -66,7 +66,7 @@
 		saving = true;
 		let failure: SaveFailure | null = null;
 		try {
-			// Every editable field is sent: updates replace the whole record (DECISIONS D5).
+			// Every editable field is sent: updates replace the whole record.
 			await onSubmit({ name, birthDate: birthDate || null, bio: bio || null });
 		} catch (error) {
 			failure = saveFailure(

@@ -70,7 +70,7 @@
 		saving = true;
 		let failure: SaveFailure | null = null;
 		try {
-			// Every editable field is sent: updates replace the whole record (DECISIONS D5).
+			// Every editable field is sent: updates replace the whole record.
 			await onSubmit({
 				title,
 				releaseDate: releaseDate || null,

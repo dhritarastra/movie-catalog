@@ -1,4 +1,4 @@
-# Draft contract between the web app and the gateway (docs/PLAN.md §5).
+# The contract between the web app and the gateway.
 # Calendar dates are ISO-8601 strings (yyyy-MM-dd); timestamps are ISO-8601 instants.
 # Updates replace every editable field; `version` guards against overwriting a newer edit.
 

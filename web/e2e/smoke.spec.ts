@@ -2,7 +2,7 @@ import { expect, test, type Page, type Request } from '@playwright/test';
 import { png } from './images';
 
 /**
- * The browser smoke test (docs/PLAN.md §9): one flow through the whole stack, extended as
+ * The browser smoke test: one flow through the whole stack, extended as
  * features arrive. Everything else is covered by faster tests at lower layers.
  */
 test('create, edit and delete a movie with artwork, and a person, with failures explained', async ({
