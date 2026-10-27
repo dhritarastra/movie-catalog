@@ -2,7 +2,7 @@ package com.moviecatalog.gateway.movie
 
 import com.moviecatalog.catalog.v1.ArtworkChangeResponse
 import com.moviecatalog.catalog.v1.Movie
-import com.moviecatalog.gateway.GatewayProperties
+import com.moviecatalog.gateway.config.GatewayProperties
 import com.moviecatalog.gateway.graphql.ErrorCode
 import com.moviecatalog.gateway.graphql.GatewayException
 import com.moviecatalog.gateway.grpc.CatalogClient
@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.Duration
 
-/** The cross-service consistency rules for uploads (docs/PLAN.md §6), with both services mocked. */
+/** The cross-service consistency rules for uploads, with both services mocked. */
 class ArtworkUploaderTest {
     private val catalog = mockk<CatalogClient>()
     private val media = mockk<MediaClient>()
@@ -28,7 +28,7 @@ class ArtworkUploaderTest {
         catalog,
         media,
         ArtworkCleaner(media),
-        GatewayProperties(MAX_BYTES, Duration.ofSeconds(2), Duration.ofSeconds(30), Duration.ofSeconds(30)),
+        GatewayProperties(MAX_BYTES, Duration.ofSeconds(2), Duration.ofSeconds(30), Duration.ofSeconds(30), 64 * 1024, Duration.ofSeconds(60)),
     )
     private val source = UploadSource("image/png", 100, "poster.png") { ByteArray(100).inputStream() }
 

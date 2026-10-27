@@ -23,7 +23,7 @@ import com.moviecatalog.catalog.v1.PersonServiceGrpc
 import com.moviecatalog.catalog.v1.SetArtworkRequest
 import com.moviecatalog.catalog.v1.UpdateMovieRequest
 import com.moviecatalog.catalog.v1.UpdatePersonRequest
-import com.moviecatalog.gateway.GatewayProperties
+import com.moviecatalog.gateway.config.GatewayProperties
 import io.grpc.stub.AbstractStub
 import org.springframework.stereotype.Component
 import java.util.concurrent.TimeUnit

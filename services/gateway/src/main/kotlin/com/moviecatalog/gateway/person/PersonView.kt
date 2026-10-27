@@ -26,8 +26,3 @@ data class PersonView(
             )
     }
 }
-
-data class PersonPageView(val items: List<PersonView>, val totalCount: Int, val offset: Int, val limit: Int)
-
-/** `PersonInput` as received; the catalog validates and normalises it. */
-data class PersonInput(val name: String, val bio: String?, val birthDate: String?)

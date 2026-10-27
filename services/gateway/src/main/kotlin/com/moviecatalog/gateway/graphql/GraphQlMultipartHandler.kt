@@ -1,49 +1,22 @@
 package com.moviecatalog.gateway.graphql
 
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
-import org.springframework.core.Ordered
-import org.springframework.core.annotation.Order
+import com.moviecatalog.gateway.config.GatewayProperties
 import org.springframework.graphql.server.WebGraphQlHandler
 import org.springframework.graphql.server.WebGraphQlRequest
 import org.springframework.http.HttpCookie
 import org.springframework.http.HttpHeaders
-import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
-import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
 import org.springframework.util.LinkedMultiValueMap
-import org.springframework.web.bind.annotation.ExceptionHandler
-import org.springframework.web.bind.annotation.RestControllerAdvice
-import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.multipart.MultipartHttpServletRequest
-import org.springframework.web.servlet.function.RequestPredicates
-import org.springframework.web.servlet.function.RouterFunction
-import org.springframework.web.servlet.function.RouterFunctions
 import org.springframework.web.servlet.function.ServerRequest
 import org.springframework.web.servlet.function.ServerResponse
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.json.JsonMapper
 import java.net.InetSocketAddress
 import java.net.URI
-import java.time.Duration
 import java.util.UUID
-
-/**
- * Routes multipart POSTs to /graphql to [GraphQlMultipartHandler]. Spring for GraphQL serves the
- * same path with its own router function, which answers any non-JSON body with 415, so this route
- * is ordered ahead of it and matches only multipart/form-data. JSON requests still go to Spring's.
- */
-@Configuration
-class GraphQlMultipartConfiguration {
-    @Bean
-    @Order(Ordered.HIGHEST_PRECEDENCE)
-    fun graphQlMultipartRoute(handler: GraphQlMultipartHandler): RouterFunction<ServerResponse> =
-        RouterFunctions.route()
-            .POST("/graphql", RequestPredicates.contentType(MediaType.MULTIPART_FORM_DATA), handler::handle)
-            .build()
-}
 
 /**
  * Accepts GraphQL operations sent as multipart/form-data under the GraphQL multipart request spec
@@ -62,6 +35,7 @@ class GraphQlMultipartConfiguration {
 class GraphQlMultipartHandler(
     private val graphQlHandler: WebGraphQlHandler,
     private val jsonMapper: JsonMapper,
+    private val properties: GatewayProperties,
 ) {
     fun handle(request: ServerRequest): ServerResponse {
         // DispatcherServlet has already parsed the multipart body before routing.
@@ -95,7 +69,7 @@ class GraphQlMultipartHandler(
             UUID.randomUUID().toString(),
             request.locale,
         )
-        val response = graphQlHandler.handleRequest(graphQlRequest).block(TIMEOUT)
+        val response = graphQlHandler.handleRequest(graphQlRequest).block(properties.multipartTimeout)
             ?: throw IllegalStateException("No GraphQL response")
         return ServerResponse.ok()
             .headers { it.addAll(response.responseHeaders) }
@@ -176,22 +150,7 @@ class GraphQlMultipartHandler(
     class MultipartRequestException(message: String) : RuntimeException(message)
 
     companion object {
-        private val TIMEOUT: Duration = Duration.ofSeconds(60)
-
         fun errorBody(code: ErrorCode, message: String?): Map<String, Any?> =
             mapOf("errors" to listOf(mapOf("message" to message, "extensions" to mapOf("code" to code.name))))
     }
-}
-
-/**
- * The servlet container rejects a request over spring.servlet.multipart limits while parsing it,
- * before any handler runs, so this has to be global advice rather than a handler method.
- */
-@RestControllerAdvice
-class UploadLimitAdvice {
-    @ExceptionHandler(MaxUploadSizeExceededException::class)
-    fun tooLarge(): ResponseEntity<Map<String, Any?>> =
-        ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(GraphQlMultipartHandler.errorBody(ErrorCode.RESOURCE_EXHAUSTED, "The image must be at most 5 MB"))
 }

@@ -15,8 +15,6 @@ import org.springframework.graphql.data.method.annotation.SchemaMapping
 import org.springframework.stereotype.Controller
 import org.springframework.web.multipart.MultipartFile
 
-enum class ArtworkVariant { FULL, THUMBNAIL }
-
 @Controller
 class MovieController(
     private val catalog: CatalogClient,

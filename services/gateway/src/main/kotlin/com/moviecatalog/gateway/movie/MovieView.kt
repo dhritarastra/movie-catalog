@@ -35,14 +35,3 @@ data class MovieView(
             )
     }
 }
-
-data class MoviePageView(val items: List<MovieView>, val totalCount: Int, val offset: Int, val limit: Int)
-
-/** `MovieInput` as received; the catalog validates and normalises it. */
-data class MovieInput(
-    val title: String,
-    val synopsis: String?,
-    val releaseDate: String?,
-    val runtimeMinutes: Int?,
-    val genres: List<String>,
-)

@@ -1,7 +1,7 @@
 package com.moviecatalog.gateway.grpc
 
 import com.google.protobuf.ByteString
-import com.moviecatalog.gateway.GatewayProperties
+import com.moviecatalog.gateway.config.GatewayProperties
 import com.moviecatalog.media.v1.Artwork
 import com.moviecatalog.media.v1.ArtworkVariant
 import com.moviecatalog.media.v1.DeleteArtworkRequest
@@ -21,9 +21,6 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 
-/** What the gateway knows about a file before streaming it. */
-data class UploadSource(val contentType: String, val sizeBytes: Long, val filename: String, val open: () -> InputStream)
-
 @Component
 class MediaClient(
     private val async: MediaServiceGrpc.MediaServiceStub,
@@ -31,7 +28,7 @@ class MediaClient(
     private val properties: GatewayProperties,
 ) {
     /**
-     * Streams [source] to media in 64 KiB chunks and waits for the stored artwork.
+     * Streams [source] to media in chunks of `gateway.media-upload-chunk-bytes` and waits for the stored artwork.
      *
      * Chunks are written only while the call reports it is ready, from gRPC's on-ready callback,
      * so a slow media service applies backpressure instead of the gateway buffering the whole
@@ -40,8 +37,9 @@ class MediaClient(
     fun upload(source: UploadSource): Artwork {
         val result = CompletableFuture<Artwork>()
         val stub = async.withDeadlineAfter(properties.mediaUploadDeadline.toMillis(), TimeUnit.MILLISECONDS)
-        stub.uploadArtwork(ChunkWriter(source, result))
+        stub.uploadArtwork(ChunkWriter(source, result, properties.mediaUploadChunkBytes))
         return try {
+            // The deadline ends the call itself; the extra time only covers its error reaching this thread.
             result.get(properties.mediaUploadDeadline.toMillis() + 5_000, TimeUnit.MILLISECONDS)
         } catch (e: ExecutionException) {
             throw e.cause as? StatusRuntimeException ?: Status.INTERNAL.withCause(e.cause).asRuntimeException()
@@ -61,8 +59,9 @@ class MediaClient(
     private class ChunkWriter(
         private val source: UploadSource,
         private val result: CompletableFuture<Artwork>,
+        chunkBytes: Int,
     ) : ClientResponseObserver<UploadArtworkRequest, Artwork> {
-        private val buffer = ByteArray(CHUNK_BYTES)
+        private val buffer = ByteArray(chunkBytes)
         private var input: InputStream? = null
 
         @Volatile
@@ -123,9 +122,5 @@ class MediaClient(
         private fun closeInput() {
             runCatching { input?.close() }
         }
-    }
-
-    companion object {
-        const val CHUNK_BYTES = 64 * 1024
     }
 }
