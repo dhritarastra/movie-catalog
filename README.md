@@ -117,7 +117,46 @@ cd web && npm test
 runs the web unit tests. `npm run check` type-checks and `npm run lint` checks formatting and
 lint rules.
 
-CI runs all of these on pushes to `main` and on pull requests (`.github/workflows/ci.yml`).
+### Browser smoke test
+
+`web/e2e/smoke.spec.ts` drives one user flow in Chromium against the running stack, through nginx
+and the real services:
+- create a movie
+- upload artwork and see it displayed
+- reload the movie's URL
+- check that bad uploads are refused with a message
+
+Start the stack and wait until every service is healthy:
+
+```bash
+docker compose up --build --wait
+```
+
+Install the web dependencies and Playwright's Chromium (on Linux, add `--with-deps` to also
+install the system libraries Chromium needs):
+
+```bash
+cd web && npm ci && npx playwright install chromium
+```
+
+Then run the test from `web/`:
+
+```bash
+npm run test:e2e
+```
+
+The test targets `http://localhost:3000` by default. If the app is somewhere else, for example
+after changing `WEB_PORT` in `.env`, set `E2E_BASE_URL`:
+
+```bash
+E2E_BASE_URL=http://localhost:8081 npm run test:e2e
+```
+
+Each run adds a movie named "Smoke test …"; `docker compose down -v` clears all data.
+
+CI runs all of these on pushes to `main` and on pull requests (`.github/workflows/ci.yml`). Its
+`stack` job builds the Docker images, starts the stack, and runs the browser smoke test against
+it, uploading the Playwright report if it fails.
 
 ## API at a glance
 
