@@ -105,7 +105,7 @@ export function describeError(error: unknown): string {
 	if (error instanceof GraphQlRequestError) {
 		switch (error.code) {
 			case 'CONFLICT':
-				return 'Someone else changed this movie. Reload to see the latest version, then try again.';
+				return 'Someone else changed this first. Reload to see the latest version, then try again.';
 			case 'SERVICE_UNAVAILABLE':
 				return 'The server did not respond in time. Reload to check whether your change was saved.';
 			default:

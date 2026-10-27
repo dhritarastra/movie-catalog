@@ -22,6 +22,12 @@ export type PageInput = {
   offset?: number | null | undefined;
 };
 
+export type PersonInput = {
+  bio?: string | null | undefined;
+  birthDate?: string | null | undefined;
+  name: string;
+};
+
 export type MovieCardFieldsFragment = { id: string, title: string, releaseDate: string | null, genres: Array<string>, thumbnailUrl: string | null };
 
 export type MoviesQueryVariables = Exact<{
@@ -81,6 +87,46 @@ export type UploadArtworkMutationVariables = Exact<{
 
 export type UploadArtworkMutation = { uploadArtwork: { id: string, title: string, synopsis: string | null, releaseDate: string | null, runtimeMinutes: number | null, genres: Array<string>, version: number, artworkUrl: string | null } };
 
+export type PeopleQueryVariables = Exact<{
+  page?: PageInput | null | undefined;
+}>;
+
+
+export type PeopleQuery = { people: { totalCount: number, offset: number, limit: number, items: Array<{ id: string, name: string, birthDate: string | null }> } };
+
+export type PersonDetailFieldsFragment = { id: string, name: string, bio: string | null, birthDate: string | null, version: number };
+
+export type PersonQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type PersonQuery = { person: { id: string, name: string, bio: string | null, birthDate: string | null, version: number } | null };
+
+export type CreatePersonMutationVariables = Exact<{
+  input: PersonInput;
+}>;
+
+
+export type CreatePersonMutation = { createPerson: { id: string } };
+
+export type UpdatePersonMutationVariables = Exact<{
+  id: string | number;
+  version: number;
+  input: PersonInput;
+}>;
+
+
+export type UpdatePersonMutation = { updatePerson: { id: string, name: string, bio: string | null, birthDate: string | null, version: number } };
+
+export type DeletePersonMutationVariables = Exact<{
+  id: string | number;
+  version: number;
+}>;
+
+
+export type DeletePersonMutation = { deletePerson: string };
+
 export class TypedDocumentString<TResult, TVariables>
   extends String
   implements DocumentTypeDecoration<TResult, TVariables>
@@ -120,6 +166,15 @@ export const MovieDetailFieldsFragmentDoc = new TypedDocumentString(`
   artworkUrl(variant: FULL)
 }
     `, {"fragmentName":"MovieDetailFields"}) as unknown as TypedDocumentString<MovieDetailFieldsFragment, unknown>;
+export const PersonDetailFieldsFragmentDoc = new TypedDocumentString(`
+    fragment PersonDetailFields on Person {
+  id
+  name
+  bio
+  birthDate
+  version
+}
+    `, {"fragmentName":"PersonDetailFields"}) as unknown as TypedDocumentString<PersonDetailFieldsFragment, unknown>;
 export const MoviesDocument = new TypedDocumentString(`
     query Movies($page: PageInput) {
   movies(page: $page) {
@@ -214,3 +269,55 @@ export const UploadArtworkDocument = new TypedDocumentString(`
   version
   artworkUrl(variant: FULL)
 }`) as unknown as TypedDocumentString<UploadArtworkMutation, UploadArtworkMutationVariables>;
+export const PeopleDocument = new TypedDocumentString(`
+    query People($page: PageInput) {
+  people(page: $page) {
+    totalCount
+    offset
+    limit
+    items {
+      id
+      name
+      birthDate
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<PeopleQuery, PeopleQueryVariables>;
+export const PersonDocument = new TypedDocumentString(`
+    query Person($id: ID!) {
+  person(id: $id) {
+    ...PersonDetailFields
+  }
+}
+    fragment PersonDetailFields on Person {
+  id
+  name
+  bio
+  birthDate
+  version
+}`) as unknown as TypedDocumentString<PersonQuery, PersonQueryVariables>;
+export const CreatePersonDocument = new TypedDocumentString(`
+    mutation CreatePerson($input: PersonInput!) {
+  createPerson(input: $input) {
+    id
+  }
+}
+    `) as unknown as TypedDocumentString<CreatePersonMutation, CreatePersonMutationVariables>;
+export const UpdatePersonDocument = new TypedDocumentString(`
+    mutation UpdatePerson($id: ID!, $version: Int!, $input: PersonInput!) {
+  updatePerson(id: $id, version: $version, input: $input) {
+    ...PersonDetailFields
+  }
+}
+    fragment PersonDetailFields on Person {
+  id
+  name
+  bio
+  birthDate
+  version
+}`) as unknown as TypedDocumentString<UpdatePersonMutation, UpdatePersonMutationVariables>;
+export const DeletePersonDocument = new TypedDocumentString(`
+    mutation DeletePerson($id: ID!, $version: Int!) {
+  deletePerson(id: $id, version: $version)
+}
+    `) as unknown as TypedDocumentString<DeletePersonMutation, DeletePersonMutationVariables>;

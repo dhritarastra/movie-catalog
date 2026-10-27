@@ -5,11 +5,15 @@ import { png } from './images';
  * The browser smoke test (docs/PLAN.md §9): one flow through the whole stack, extended as
  * features arrive. Everything else is covered by faster tests at lower layers.
  */
-test('create, upload artwork, edit and delete a movie, with failures explained', async ({
+test('create, edit and delete a movie with artwork, and a person, with failures explained', async ({
 	page
 }) => {
-	const title = `Smoke test ${Date.now()}`;
+	const stamp = Date.now();
+	const title = `Smoke test ${stamp}`;
 	const editedTitle = `${title} (edited)`;
+	// Early in the alphabet, so the person is on the first page of the list even with other data.
+	const person = `Ada Smoke ${stamp}`;
+	const editedPerson = `${person} Jr`;
 
 	await test.step('the movie list loads', async () => {
 		await page.goto('/movies');
@@ -132,6 +136,63 @@ test('create, upload artwork, edit and delete a movie, with failures explained',
 		await expect(page.getByText(`“${name}” was deleted.`)).toBeVisible();
 		await expect(page).toHaveURL(/\/movies$/);
 		await expect(page.getByRole('link', { name: new RegExp(title) })).toHaveCount(0);
+	});
+
+	await test.step('the person form explains a missing name and a future birth date', async () => {
+		await page
+			.getByRole('navigation', { name: 'Main' })
+			.getByRole('link', { name: 'People' })
+			.click();
+		await expect(page.getByRole('heading', { name: 'People', level: 1 })).toBeVisible();
+		await page.getByRole('link', { name: 'Add person' }).click();
+
+		await page.getByLabel('Birth date').fill('2999-01-01');
+		await page.getByRole('button', { name: 'Add person' }).click();
+		await expect(page.getByText('Enter a name.')).toBeVisible();
+		await expect(page.getByText('A birth date cannot be in the future.')).toBeVisible();
+	});
+
+	await test.step('adding the person opens their page, which survives a reload', async () => {
+		await page.getByLabel('Name').fill(person);
+		await page.getByLabel('Birth date').fill('1967-10-03');
+		await page.getByLabel('Biography').fill('Added by the smoke test.');
+		await page.getByRole('button', { name: 'Add person' }).click();
+
+		await expect(page.getByRole('heading', { name: person, level: 1 })).toBeVisible();
+		await expect(page.getByText(`${person} was added.`)).toBeVisible();
+		await expect(page.getByText('Born 3 October 1967')).toBeVisible();
+
+		await page.reload();
+		await expect(page.getByRole('heading', { name: person, level: 1 })).toBeVisible();
+	});
+
+	await test.step('the person is listed, and editing replaces every field', async () => {
+		await page.getByRole('link', { name: '← All people' }).click();
+		const row = page.getByRole('link', { name: new RegExp(person) });
+		await expect(row).toContainText('Born 1967');
+		await row.click();
+		await page.getByRole('link', { name: 'Edit', exact: true }).click();
+		await expect(page.getByLabel('Name')).toHaveValue(person);
+		await page.getByLabel('Name').fill(editedPerson);
+		await page.getByLabel('Biography').fill('');
+		await page.getByRole('button', { name: 'Save changes' }).click();
+
+		await expect(page.getByText('Changes saved.')).toBeVisible();
+		await expect(page.getByRole('heading', { name: editedPerson, level: 1 })).toBeVisible();
+		await expect(page.getByText('Added by the smoke test.')).toHaveCount(0);
+		await expect(page.getByText('Born 3 October 1967')).toBeVisible();
+	});
+
+	await test.step('deleting the person asks first, then removes them from the list', async () => {
+		await page.getByRole('button', { name: 'Delete', exact: true }).click();
+		await page
+			.getByRole('dialog', { name: `Delete ${editedPerson}?` })
+			.getByRole('button', { name: 'Delete person' })
+			.click();
+
+		await expect(page.getByText(`${editedPerson} was deleted.`)).toBeVisible();
+		await expect(page).toHaveURL(/\/people$/);
+		await expect(page.getByRole('link', { name: new RegExp(person) })).toHaveCount(0);
 	});
 });
 

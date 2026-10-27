@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import ArtworkUpload from '#lib/components/ArtworkUpload.svelte';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
-	import { formatRuntime, releaseYear } from '#lib/format.ts';
+	import { formatRuntime, yearOf } from '#lib/format.ts';
 	import { describeError, GraphQlRequestError, request } from '#lib/graphql/client.ts';
 	import type { MovieDetailFieldsFragment } from '#lib/graphql/generated/graphql.ts';
 	import {
@@ -149,7 +149,7 @@
 				</div>
 			</div>
 			<p class="muted facts">
-				{[releaseYear(movie.releaseDate), formatRuntime(movie.runtimeMinutes)]
+				{[yearOf(movie.releaseDate), formatRuntime(movie.runtimeMinutes)]
 					.filter(Boolean)
 					.join(' · ')}
 			</p>

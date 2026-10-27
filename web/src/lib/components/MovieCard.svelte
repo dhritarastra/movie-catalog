@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { releaseYear } from '#lib/format.ts';
+	import { yearOf } from '#lib/format.ts';
 	import type { MovieCardFieldsFragment } from '#lib/graphql/generated/graphql.ts';
 
 	let { movie }: { movie: MovieCardFieldsFragment } = $props();
 
-	const year = $derived(releaseYear(movie.releaseDate));
+	const year = $derived(yearOf(movie.releaseDate));
 </script>
 
 <a class="card" href={resolve('/movies/[id]', { id: movie.id })}>

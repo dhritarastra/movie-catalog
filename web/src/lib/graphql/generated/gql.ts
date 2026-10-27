@@ -24,6 +24,12 @@ type Documents = {
     "\n\tmutation DeleteMovie($id: ID!, $version: Int!) {\n\t\tdeleteMovie(id: $id, version: $version)\n\t}\n": typeof types.DeleteMovieDocument,
     "\n\tmutation RemoveArtwork($movieId: ID!, $version: Int!) {\n\t\tremoveArtwork(movieId: $movieId, version: $version) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": typeof types.RemoveArtworkDocument,
     "\n\tmutation UploadArtwork($movieId: ID!, $version: Int!, $file: Upload!) {\n\t\tuploadArtwork(movieId: $movieId, version: $version, file: $file) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": typeof types.UploadArtworkDocument,
+    "\n\tquery People($page: PageInput) {\n\t\tpeople(page: $page) {\n\t\t\ttotalCount\n\t\t\toffset\n\t\t\tlimit\n\t\t\titems {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t\tbirthDate\n\t\t\t}\n\t\t}\n\t}\n": typeof types.PeopleDocument,
+    "\n\tfragment PersonDetailFields on Person {\n\t\tid\n\t\tname\n\t\tbio\n\t\tbirthDate\n\t\tversion\n\t}\n": typeof types.PersonDetailFieldsFragmentDoc,
+    "\n\tquery Person($id: ID!) {\n\t\tperson(id: $id) {\n\t\t\t...PersonDetailFields\n\t\t}\n\t}\n": typeof types.PersonDocument,
+    "\n\tmutation CreatePerson($input: PersonInput!) {\n\t\tcreatePerson(input: $input) {\n\t\t\tid\n\t\t}\n\t}\n": typeof types.CreatePersonDocument,
+    "\n\tmutation UpdatePerson($id: ID!, $version: Int!, $input: PersonInput!) {\n\t\tupdatePerson(id: $id, version: $version, input: $input) {\n\t\t\t...PersonDetailFields\n\t\t}\n\t}\n": typeof types.UpdatePersonDocument,
+    "\n\tmutation DeletePerson($id: ID!, $version: Int!) {\n\t\tdeletePerson(id: $id, version: $version)\n\t}\n": typeof types.DeletePersonDocument,
 };
 const documents: Documents = {
     "\n\tfragment MovieCardFields on Movie {\n\t\tid\n\t\ttitle\n\t\treleaseDate\n\t\tgenres\n\t\tthumbnailUrl: artworkUrl(variant: THUMBNAIL)\n\t}\n": types.MovieCardFieldsFragmentDoc,
@@ -35,6 +41,12 @@ const documents: Documents = {
     "\n\tmutation DeleteMovie($id: ID!, $version: Int!) {\n\t\tdeleteMovie(id: $id, version: $version)\n\t}\n": types.DeleteMovieDocument,
     "\n\tmutation RemoveArtwork($movieId: ID!, $version: Int!) {\n\t\tremoveArtwork(movieId: $movieId, version: $version) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": types.RemoveArtworkDocument,
     "\n\tmutation UploadArtwork($movieId: ID!, $version: Int!, $file: Upload!) {\n\t\tuploadArtwork(movieId: $movieId, version: $version, file: $file) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": types.UploadArtworkDocument,
+    "\n\tquery People($page: PageInput) {\n\t\tpeople(page: $page) {\n\t\t\ttotalCount\n\t\t\toffset\n\t\t\tlimit\n\t\t\titems {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t\tbirthDate\n\t\t\t}\n\t\t}\n\t}\n": types.PeopleDocument,
+    "\n\tfragment PersonDetailFields on Person {\n\t\tid\n\t\tname\n\t\tbio\n\t\tbirthDate\n\t\tversion\n\t}\n": types.PersonDetailFieldsFragmentDoc,
+    "\n\tquery Person($id: ID!) {\n\t\tperson(id: $id) {\n\t\t\t...PersonDetailFields\n\t\t}\n\t}\n": types.PersonDocument,
+    "\n\tmutation CreatePerson($input: PersonInput!) {\n\t\tcreatePerson(input: $input) {\n\t\t\tid\n\t\t}\n\t}\n": types.CreatePersonDocument,
+    "\n\tmutation UpdatePerson($id: ID!, $version: Int!, $input: PersonInput!) {\n\t\tupdatePerson(id: $id, version: $version, input: $input) {\n\t\t\t...PersonDetailFields\n\t\t}\n\t}\n": types.UpdatePersonDocument,
+    "\n\tmutation DeletePerson($id: ID!, $version: Int!) {\n\t\tdeletePerson(id: $id, version: $version)\n\t}\n": types.DeletePersonDocument,
 };
 
 /**
@@ -73,6 +85,30 @@ export function graphql(source: "\n\tmutation RemoveArtwork($movieId: ID!, $vers
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n\tmutation UploadArtwork($movieId: ID!, $version: Int!, $file: Upload!) {\n\t\tuploadArtwork(movieId: $movieId, version: $version, file: $file) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n"): typeof import('./graphql').UploadArtworkDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tquery People($page: PageInput) {\n\t\tpeople(page: $page) {\n\t\t\ttotalCount\n\t\t\toffset\n\t\t\tlimit\n\t\t\titems {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t\tbirthDate\n\t\t\t}\n\t\t}\n\t}\n"): typeof import('./graphql').PeopleDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tfragment PersonDetailFields on Person {\n\t\tid\n\t\tname\n\t\tbio\n\t\tbirthDate\n\t\tversion\n\t}\n"): typeof import('./graphql').PersonDetailFieldsFragmentDoc;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tquery Person($id: ID!) {\n\t\tperson(id: $id) {\n\t\t\t...PersonDetailFields\n\t\t}\n\t}\n"): typeof import('./graphql').PersonDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation CreatePerson($input: PersonInput!) {\n\t\tcreatePerson(input: $input) {\n\t\t\tid\n\t\t}\n\t}\n"): typeof import('./graphql').CreatePersonDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation UpdatePerson($id: ID!, $version: Int!, $input: PersonInput!) {\n\t\tupdatePerson(id: $id, version: $version, input: $input) {\n\t\t\t...PersonDetailFields\n\t\t}\n\t}\n"): typeof import('./graphql').UpdatePersonDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation DeletePerson($id: ID!, $version: Int!) {\n\t\tdeletePerson(id: $id, version: $version)\n\t}\n"): typeof import('./graphql').DeletePersonDocument;
 
 
 export function graphql(source: string) {

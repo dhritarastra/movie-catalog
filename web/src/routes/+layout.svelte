@@ -7,6 +7,12 @@
 	import type { LayoutProps } from './$types';
 
 	let { children }: LayoutProps = $props();
+
+	// A section's link is the current page on its list, and marks the current section below it.
+	function current(path: '/movies' | '/people'): 'page' | 'true' | undefined {
+		if (page.url.pathname === path) return 'page';
+		return page.url.pathname.startsWith(`${path}/`) ? 'true' : undefined;
+	}
 </script>
 
 <svelte:head>
@@ -19,12 +25,10 @@
 <header class="site-header">
 	<div class="container header-inner">
 		<a class="brand" href={resolve('/movies')}>Movie Catalog</a>
+		<!-- Each section's own "Add" button sits on its list page, leaving room here for search. -->
 		<nav aria-label="Main">
-			<a
-				href={resolve('/movies')}
-				aria-current={page.url.pathname === '/movies' ? 'page' : undefined}>Movies</a
-			>
-			<a class="button primary" href={resolve('/movies/new')}>Add movie</a>
+			<a href={resolve('/movies')} aria-current={current('/movies')}>Movies</a>
+			<a href={resolve('/people')} aria-current={current('/people')}>People</a>
 		</nav>
 	</div>
 </header>
@@ -82,7 +86,7 @@
 		font-weight: 600;
 	}
 
-	nav a[aria-current='page'] {
+	nav a[aria-current] {
 		color: var(--text);
 	}
 </style>

@@ -83,3 +83,58 @@ export const UploadArtworkMutation = graphql(`
 		}
 	}
 `);
+
+export const PeopleQuery = graphql(`
+	query People($page: PageInput) {
+		people(page: $page) {
+			totalCount
+			offset
+			limit
+			items {
+				id
+				name
+				birthDate
+			}
+		}
+	}
+`);
+
+export const PersonDetailFields = graphql(`
+	fragment PersonDetailFields on Person {
+		id
+		name
+		bio
+		birthDate
+		version
+	}
+`);
+
+export const PersonQuery = graphql(`
+	query Person($id: ID!) {
+		person(id: $id) {
+			...PersonDetailFields
+		}
+	}
+`);
+
+export const CreatePersonMutation = graphql(`
+	mutation CreatePerson($input: PersonInput!) {
+		createPerson(input: $input) {
+			id
+		}
+	}
+`);
+
+export const UpdatePersonMutation = graphql(`
+	mutation UpdatePerson($id: ID!, $version: Int!, $input: PersonInput!) {
+		updatePerson(id: $id, version: $version, input: $input) {
+			...PersonDetailFields
+		}
+	}
+`);
+
+export const DeletePersonMutation = graphql(`
+	mutation DeletePerson($id: ID!, $version: Int!) {
+		deletePerson(id: $id, version: $version)
+	}
+`);

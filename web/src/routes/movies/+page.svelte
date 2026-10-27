@@ -48,13 +48,16 @@
 </svelte:head>
 
 <div class="heading">
-	<h1>Movies</h1>
-	{#if view.status === 'ready' && view.movies.totalCount > 0}
-		<p class="muted">
-			{view.movies.offset + 1}–{view.movies.offset + view.movies.items.length} of {view.movies
-				.totalCount}
-		</p>
-	{/if}
+	<div>
+		<h1>Movies</h1>
+		{#if view.status === 'ready' && view.movies.totalCount > 0}
+			<p class="muted">
+				{view.movies.offset + 1}–{view.movies.offset + view.movies.items.length} of {view.movies
+					.totalCount}
+			</p>
+		{/if}
+	</div>
+	<a class="button primary" href={resolve('/movies/new')}>Add movie</a>
 </div>
 
 <p class="visually-hidden" aria-live="polite">
@@ -84,7 +87,6 @@
 	<div class="panel empty">
 		<h2>No movies yet</h2>
 		<p class="muted">Add the first one to start the catalog.</p>
-		<a class="button primary" href={resolve('/movies/new')}>Add movie</a>
 	</div>
 {:else if view.movies.items.length === 0}
 	<!-- Happens when movies were removed while you were on a later page. -->
@@ -123,10 +125,15 @@
 <style>
 	.heading {
 		display: flex;
-		align-items: baseline;
+		align-items: flex-start;
 		justify-content: space-between;
 		gap: 1rem;
-		flex-wrap: wrap;
+		margin-bottom: 1rem;
+	}
+
+	.heading h1,
+	.heading p {
+		margin: 0;
 	}
 
 	.grid {

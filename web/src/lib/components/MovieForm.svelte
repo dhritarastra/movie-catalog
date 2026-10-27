@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { parseGenres } from '#lib/format.ts';
-	import { describeError, GraphQlRequestError } from '#lib/graphql/client.ts';
+	import { saveFailure } from '#lib/forms.ts';
 	import type { ResolvedPathname } from '$app/types';
 	import type { MovieInput } from '#lib/graphql/generated/graphql.ts';
 
@@ -25,6 +25,9 @@
 	}
 
 	let { initial, submitLabel, cancelHref, onSubmit, onReload }: Props = $props();
+
+	// The input ids, which are also the field names in the gateway's errors.
+	const FIELDS = ['title', 'releaseDate', 'runtimeMinutes', 'genres', 'synopsis'];
 
 	// Copied once, deliberately: the form owns its values after it is created, so a parent
 	// re-render cannot wipe what the user typed. Edit pages remount it to reset.
@@ -73,24 +76,20 @@
 				synopsis: synopsis || null
 			});
 		} catch (error) {
-			if (error instanceof GraphQlRequestError && error.fieldErrors.length > 0) {
-				errors = error.fieldMessages();
-			} else {
-				const conflict = error instanceof GraphQlRequestError && error.code === 'CONFLICT';
-				formError = {
-					message: conflict
-						? 'Someone else changed this movie while you were editing. Reload to see the latest version; your changes here will be lost.'
-						: describeError(error),
-					conflict
-				};
-			}
+			const failure = saveFailure(
+				error,
+				FIELDS,
+				'Someone else changed this movie while you were editing. Reload to see the latest version; your changes here will be lost.'
+			);
+			if (failure.kind === 'fields') errors = failure.errors;
+			else formError = failure;
 		} finally {
 			saving = false;
 		}
 	}
 </script>
 
-<form class="panel" onsubmit={submit} novalidate aria-busy={saving}>
+<form class="panel form" onsubmit={submit} novalidate aria-busy={saving}>
 	{#if formError}
 		<div class="alert" role="alert">
 			<p>{formError.message}</p>
@@ -178,73 +177,3 @@
 		</button>
 	</div>
 </form>
-
-<style>
-	form {
-		display: grid;
-		gap: 1.25rem;
-		max-width: 640px;
-	}
-
-	.row {
-		display: grid;
-		gap: 1.25rem;
-	}
-
-	@media (min-width: 560px) {
-		.row {
-			grid-template-columns: 1fr 1fr;
-		}
-	}
-
-	.field {
-		display: grid;
-		gap: 0.35rem;
-	}
-
-	label {
-		font-weight: 600;
-	}
-
-	input,
-	textarea {
-		width: 100%;
-		min-height: 42px;
-		padding: 0.5rem 0.75rem;
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		background: var(--surface);
-		color: var(--text);
-		font: inherit;
-	}
-
-	[aria-invalid='true'] {
-		border-color: var(--danger);
-	}
-
-	.hint,
-	.error {
-		margin: 0;
-		font-size: 0.875rem;
-	}
-
-	.error {
-		color: var(--danger);
-	}
-
-	.alert {
-		display: grid;
-		gap: 0.5rem;
-		justify-items: start;
-	}
-
-	.alert p {
-		margin: 0;
-	}
-
-	.actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 0.75rem;
-	}
-</style>
