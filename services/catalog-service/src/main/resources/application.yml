@@ -9,6 +9,10 @@ spring:
       # Milliseconds. Fail fast when the database is unreachable, so health reports it
       # within seconds rather than after the 30s default.
       connection-timeout: 5000
+  jpa:
+    hibernate:
+      # Flyway owns the schema; Hibernate only checks that the entities match it at startup.
+      ddl-auto: validate
   grpc:
     server:
       port: ${CATALOG_GRPC_PORT:9091}
@@ -17,3 +21,8 @@ spring:
           # Refresh the gRPC health status from application health (database included).
           delay: 2s
           period: 5s
+
+catalog:
+  paging:
+    # The largest page a caller may ask for; larger requests are rejected, not cut down.
+    max-limit: 100

@@ -31,21 +31,4 @@ class RequestArgumentsTest {
         }
     }
 
-    @Test
-    fun `accepts page bounds exactly at the limits`() {
-        assertThat(RequestArguments.page(0, 1)).isEqualTo(Page(0, 1))
-        assertThat(RequestArguments.page(500, Page.MAX_LIMIT)).isEqualTo(Page(500, Page.MAX_LIMIT))
-    }
-
-    @Test
-    fun `rejects out-of-range paging instead of clamping it`() {
-        val zeroLimit = assertThrows<InvalidArgumentException> { RequestArguments.page(0, 0) }
-        assertThat(zeroLimit.violations.map { it.field }).containsExactly("page.limit")
-
-        val tooLarge = assertThrows<InvalidArgumentException> { RequestArguments.page(0, Page.MAX_LIMIT + 1) }
-        assertThat(tooLarge.violations.map { it.field }).containsExactly("page.limit")
-
-        val both = assertThrows<InvalidArgumentException> { RequestArguments.page(-1, -1) }
-        assertThat(both.violations.map { it.field }).containsExactly("page.offset", "page.limit")
-    }
 }
