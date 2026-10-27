@@ -29,10 +29,9 @@ services:
 
   catalog-service:
     build:
+      # The repository root, so the build can reach build-logic and proto.
       context: .
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE: catalog-service
+      dockerfile: services/catalog-service/Dockerfile
     environment:
       CATALOG_DB_URL: jdbc:postgresql://postgres:5432/catalog
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:-catalog}
@@ -48,10 +47,9 @@ services:
 
   media-service:
     build:
+      # The repository root, so the build can reach build-logic and proto.
       context: .
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE: media-service
+      dockerfile: services/media-service/Dockerfile
     environment:
       MEDIA_DB_URL: jdbc:postgresql://postgres:5432/media
       MEDIA_DB_PASSWORD: ${MEDIA_DB_PASSWORD:-media}
@@ -70,10 +68,9 @@ services:
 
   gateway:
     build:
+      # The repository root, so the build can reach build-logic and proto.
       context: .
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE: gateway
+      dockerfile: services/gateway/Dockerfile
     environment:
       CATALOG_GRPC_TARGET: catalog-service:9091
       MEDIA_GRPC_TARGET: media-service:9092
