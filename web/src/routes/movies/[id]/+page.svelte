@@ -12,6 +12,7 @@
 		MovieQuery,
 		RemoveArtworkMutation
 	} from '#lib/graphql/operations.ts';
+	import { trackVisit } from '#lib/navigation.ts';
 	import { showToast } from '#lib/toasts.svelte.ts';
 
 	type View =
@@ -40,10 +41,13 @@
 		return () => controller.abort();
 	});
 
+	// Shown only if this page still shows that movie; the toast confirms the upload either way.
 	function uploaded(movie: MovieDetailFieldsFragment) {
-		view = { status: 'ready', movie };
+		if (movie.id === id) view = { status: 'ready', movie };
 		showToast('success', 'Artwork updated.');
 	}
+
+	const visit = trackVisit();
 
 	// One confirmation dialog, for whichever destructive action was chosen.
 	let confirming = $state<'delete' | 'remove-artwork' | null>(null);
@@ -55,7 +59,13 @@
 		confirming = action;
 	}
 
+	/**
+	 * The dialog blocks the page while this runs, but not the browser's Back button. If the user
+	 * leaves, the outcome is still confirmed with a toast, but this page neither navigates nor
+	 * updates (see trackVisit).
+	 */
 	async function confirm(movie: MovieDetailFieldsFragment) {
+		const stillHere = visit.mark();
 		busy = true;
 		confirmError = null;
 		try {
@@ -63,25 +73,29 @@
 				await request(DeleteMovieMutation, { id: movie.id, version: movie.version });
 				confirming = null;
 				showToast('success', `“${movie.title}” was deleted.`);
-				await goto(resolve('/movies'));
+				if (stillHere()) await goto(resolve('/movies'));
 			} else {
 				const { removeArtwork } = await request(RemoveArtworkMutation, {
 					movieId: movie.id,
 					version: movie.version
 				});
 				confirming = null;
-				view = { status: 'ready', movie: removeArtwork };
+				if (stillHere()) view = { status: 'ready', movie: removeArtwork };
 				showToast('success', 'Artwork removed.');
 			}
 		} catch (error) {
 			if (error instanceof GraphQlRequestError && error.code === 'CONFLICT') {
-				// Nothing was changed. Show the latest version so the user decides again knowingly.
 				confirming = null;
-				attempt++;
-				showToast(
-					'error',
-					'Someone else changed this movie, so nothing was done. This is the latest version; try again if you still want to.'
-				);
+				if (stillHere()) {
+					// Nothing was changed. Show the latest version so the user decides again knowingly.
+					attempt++;
+					showToast(
+						'error',
+						'Someone else changed this movie, so nothing was done. This is the latest version; try again if you still want to.'
+					);
+				} else {
+					showToast('error', `Someone else changed “${movie.title}”, so nothing was done.`);
+				}
 			} else {
 				confirmError = describeError(error);
 			}

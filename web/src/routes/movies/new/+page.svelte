@@ -5,12 +5,20 @@
 	import { request } from '#lib/graphql/client.ts';
 	import type { MovieInput } from '#lib/graphql/generated/graphql.ts';
 	import { CreateMovieMutation } from '#lib/graphql/operations.ts';
+	import { trackVisit } from '#lib/navigation.ts';
 	import { showToast } from '#lib/toasts.svelte.ts';
 
+	const visit = trackVisit();
+
 	async function create(input: MovieInput) {
+		const stillHere = visit.mark();
 		const { createMovie } = await request(CreateMovieMutation, { input });
-		showToast('success', `“${input.title.trim()}” was added. You can upload artwork now.`);
-		await goto(resolve('/movies/[id]', { id: createMovie.id }));
+		if (stillHere()) {
+			showToast('success', `“${input.title.trim()}” was added. You can upload artwork now.`);
+			await goto(resolve('/movies/[id]', { id: createMovie.id }));
+		} else {
+			showToast('success', `“${input.title.trim()}” was added.`);
+		}
 	}
 </script>
 

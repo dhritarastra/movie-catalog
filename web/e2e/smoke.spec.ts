@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Request } from '@playwright/test';
 import { png } from './images';
 
 /**
@@ -83,13 +83,21 @@ test('create, edit and delete a movie with artwork, and a person, with failures 
 		);
 	});
 
-	await test.step('editing replaces the details and keeps the artwork', async () => {
+	await test.step('editing replaces the details and keeps the artwork; the form is locked while saving', async () => {
 		await page.getByRole('link', { name: new RegExp(title) }).click();
 		await page.getByRole('link', { name: 'Edit', exact: true }).click();
 		await expect(page.getByLabel('Title')).toHaveValue(title);
 		await page.getByLabel('Title').fill(editedTitle);
 		await page.getByLabel('Runtime (minutes)').fill('165');
+
+		// While the answer is on its way, nothing can be typed that the save would then discard.
+		const save = await holdResponse(page, 'UpdateMovie');
 		await page.getByRole('button', { name: 'Save changes' }).click();
+		await save.answered;
+		await expect(page.getByLabel('Title')).toBeDisabled();
+		await expect(page.getByLabel('Runtime (minutes)')).toBeDisabled();
+		await expect(page.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+		save.release();
 
 		await expect(page.getByText('Changes saved.')).toBeVisible();
 		await expect(page.getByRole('heading', { name: editedTitle, level: 1 })).toBeVisible();
@@ -110,6 +118,32 @@ test('create, edit and delete a movie with artwork, and a person, with failures 
 		await page.getByRole('button', { name: 'Reload movie' }).click();
 		await expect(page.getByLabel('Title')).toHaveValue(`${title} (changed elsewhere)`);
 		await page.getByRole('link', { name: 'Cancel' }).click();
+	});
+
+	await test.step('leaving while a save is in flight: it is confirmed, but does not pull you back', async () => {
+		// Wait out the earlier "Changes saved." toast, so the one checked below is this save's.
+		await expect(page.getByText('Changes saved.')).toHaveCount(0, { timeout: 10_000 });
+		await page.getByRole('link', { name: 'Edit', exact: true }).click();
+		await expect(page.getByLabel('Title')).toHaveValue(`${title} (changed elsewhere)`);
+		await page.getByLabel('Genres').fill('Sci-Fi, Neo-noir, Thriller');
+
+		const save = await holdResponse(page, 'UpdateMovie');
+		await page.getByRole('button', { name: 'Save changes' }).click();
+		await save.answered;
+		await page.getByRole('link', { name: 'Cancel' }).click();
+		await page.getByRole('link', { name: '← All movies' }).click();
+		await expect(page.getByRole('heading', { name: 'Movies', level: 1 })).toBeVisible();
+		save.release();
+
+		const toast = page.getByText('Changes saved.');
+		await expect(toast).toBeVisible();
+		// A redirect would follow the toast within milliseconds; the toast stays for seconds.
+		await expect(toast).toBeHidden({ timeout: 10_000 });
+		await expect(page).toHaveURL(/\/movies$/);
+
+		// The save itself went through.
+		await page.getByRole('link', { name: new RegExp(title) }).click();
+		await expect(page.getByRole('list', { name: 'Genres' })).toContainText('Thriller');
 	});
 
 	await test.step('removing the artwork asks first, then shows the placeholder', async () => {
@@ -175,7 +209,13 @@ test('create, edit and delete a movie with artwork, and a person, with failures 
 		await expect(page.getByLabel('Name')).toHaveValue(person);
 		await page.getByLabel('Name').fill(editedPerson);
 		await page.getByLabel('Biography').fill('');
+
+		const save = await holdResponse(page, 'UpdatePerson');
 		await page.getByRole('button', { name: 'Save changes' }).click();
+		await save.answered;
+		await expect(page.getByLabel('Name')).toBeDisabled();
+		await expect(page.getByLabel('Biography')).toBeDisabled();
+		save.release();
 
 		await expect(page.getByText('Changes saved.')).toBeVisible();
 		await expect(page.getByRole('heading', { name: editedPerson, level: 1 })).toBeVisible();
@@ -221,6 +261,39 @@ async function renameElsewhere(page: Page, id: string, newTitle: string) {
 			}
 		}
 	);
+}
+
+/**
+ * Delays the answer to the next `operation` request, as a slow connection would. The request
+ * reaches the server at once, so the change is made; the page receives the response only when
+ * `release()` is called. `answered` resolves once the server has replied.
+ */
+async function holdResponse(page: Page, operation: string) {
+	let release!: () => void;
+	const released = new Promise<void>((resolve) => (release = resolve));
+	let markAnswered!: () => void;
+	const answered = new Promise<void>((resolve) => (markAnswered = resolve));
+	let matched = false;
+
+	await page.route('**/graphql', async (route) => {
+		if (matched || operationName(route.request()) !== operation) return route.fallback();
+		matched = true;
+		const response = await route.fetch();
+		markAnswered();
+		await released;
+		await route.fulfill({ response });
+	});
+	return { answered, release };
+}
+
+/** "UpdateMovie" for a JSON request whose query starts `mutation UpdateMovie(`; null otherwise. */
+function operationName(request: Request): string | null {
+	try {
+		const query: unknown = request.postDataJSON()?.query;
+		return typeof query === 'string' ? (/^\s*\w+\s+(\w+)/.exec(query)?.[1] ?? null) : null;
+	} catch {
+		return null; // multipart uploads are not JSON
+	}
 }
 
 async function chooseFile(page: Page, name: string, mimeType: string, buffer: Buffer) {

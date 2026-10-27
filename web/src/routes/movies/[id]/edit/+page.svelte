@@ -6,6 +6,7 @@
 	import { describeError, request } from '#lib/graphql/client.ts';
 	import type { MovieDetailFieldsFragment, MovieInput } from '#lib/graphql/generated/graphql.ts';
 	import { MovieQuery, UpdateMovieMutation } from '#lib/graphql/operations.ts';
+	import { trackVisit } from '#lib/navigation.ts';
 	import { showToast } from '#lib/toasts.svelte.ts';
 
 	type View =
@@ -34,11 +35,18 @@
 		return () => controller.abort();
 	});
 
-	/** Saves against the version that was loaded, so a newer edit made elsewhere is never overwritten. */
+	const visit = trackVisit();
+
+	/**
+	 * Saves against the version that was loaded, so a newer edit made elsewhere is never
+	 * overwritten. If the user leaves while it saves, the save still completes; they get the
+	 * toast but are not pulled back to this movie.
+	 */
 	async function save(movie: MovieDetailFieldsFragment, input: MovieInput) {
+		const stillHere = visit.mark();
 		await request(UpdateMovieMutation, { id: movie.id, version: movie.version, input });
 		showToast('success', 'Changes saved.');
-		await goto(resolve('/movies/[id]', { id: movie.id }));
+		if (stillHere()) await goto(resolve('/movies/[id]', { id: movie.id }));
 	}
 </script>
 

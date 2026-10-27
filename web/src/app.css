@@ -146,6 +146,16 @@ main.container {
 	max-width: 640px;
 }
 
+/* Wraps the inputs so a single `disabled` locks them all while a save is in flight. */
+.form fieldset {
+	display: grid;
+	gap: 1.25rem;
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
 .form .row {
 	display: grid;
 	gap: 1.25rem;
@@ -176,6 +186,12 @@ main.container {
 	background: var(--surface);
 	color: var(--text);
 	font: inherit;
+}
+
+.form input:disabled,
+.form textarea:disabled {
+	opacity: 0.65;
+	cursor: not-allowed;
 }
 
 .form [aria-invalid='true'] {

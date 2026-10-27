@@ -6,6 +6,7 @@
 	import { describeError, request } from '#lib/graphql/client.ts';
 	import type { PersonDetailFieldsFragment, PersonInput } from '#lib/graphql/generated/graphql.ts';
 	import { PersonQuery, UpdatePersonMutation } from '#lib/graphql/operations.ts';
+	import { trackVisit } from '#lib/navigation.ts';
 	import { showToast } from '#lib/toasts.svelte.ts';
 
 	type View =
@@ -34,11 +35,14 @@
 		return () => controller.abort();
 	});
 
-	/** Saves against the version that was loaded, so a newer edit made elsewhere is never overwritten. */
+	const visit = trackVisit();
+
+	/** Saves against the version that was loaded; like the movie edit page, never pulls a user back who left. */
 	async function save(person: PersonDetailFieldsFragment, input: PersonInput) {
+		const stillHere = visit.mark();
 		await request(UpdatePersonMutation, { id: person.id, version: person.version, input });
 		showToast('success', 'Changes saved.');
-		await goto(resolve('/people/[id]', { id: person.id }));
+		if (stillHere()) await goto(resolve('/people/[id]', { id: person.id }));
 	}
 </script>
 

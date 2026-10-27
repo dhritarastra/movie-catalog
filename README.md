@@ -124,9 +124,16 @@ lint rules.
 and the real services:
 - create a movie, upload artwork and see it displayed, and reload the movie's URL
 - check that bad uploads are refused with a message
-- edit the movie, including an edit refused because someone else saved first
+- edit the movie, checking that the form is locked while the save is in flight
+- recover from a conflict: an edit is refused because someone else saved first, and Reload
+  shows their version
+- leave the edit page while a save is in flight: the save is confirmed, but does not pull the
+  user back to the movie
 - remove the artwork and delete the movie, each after a confirmation
 - add, edit and delete a person, with the form's validation messages
+
+The in-flight steps hold the GraphQL response in the test (the server has already saved), so
+they do not depend on timing.
 
 Start the stack and wait until every service is healthy:
 
@@ -154,8 +161,9 @@ after changing `WEB_PORT` in `.env`, set `E2E_BASE_URL`:
 E2E_BASE_URL=http://localhost:8081 npm run test:e2e
 ```
 
-A run that passes deletes the movie and person it created. An interrupted run can leave a movie
-named "Smoke test …" or a person named "Ada Smoke …"; `docker compose down -v` clears all data.
+A run that passes deletes the movie and person it created. A failed or interrupted run can leave
+a movie named "Smoke test …" or a person named "Ada Smoke …" behind; they do not affect later
+runs, and `docker compose down -v` clears all data.
 
 CI runs all of these on pushes to `main` and on pull requests (`.github/workflows/ci.yml`). Its
 `stack` job builds the Docker images, starts the stack, and runs the browser smoke test against

@@ -7,6 +7,7 @@
 	import { describeError, GraphQlRequestError, request } from '#lib/graphql/client.ts';
 	import type { PersonDetailFieldsFragment } from '#lib/graphql/generated/graphql.ts';
 	import { DeletePersonMutation, PersonQuery } from '#lib/graphql/operations.ts';
+	import { trackVisit } from '#lib/navigation.ts';
 	import { showToast } from '#lib/toasts.svelte.ts';
 
 	type View =
@@ -39,23 +40,31 @@
 	let busy = $state(false);
 	let confirmError = $state<string | null>(null);
 
+	const visit = trackVisit();
+
+	/** Like deleting a movie: if the user leaves while this runs, they get a toast but stay where they went. */
 	async function remove(person: PersonDetailFieldsFragment) {
+		const stillHere = visit.mark();
 		busy = true;
 		confirmError = null;
 		try {
 			await request(DeletePersonMutation, { id: person.id, version: person.version });
 			confirming = false;
 			showToast('success', `${person.name} was deleted.`);
-			await goto(resolve('/people'));
+			if (stillHere()) await goto(resolve('/people'));
 		} catch (error) {
 			if (error instanceof GraphQlRequestError && error.code === 'CONFLICT') {
-				// Nothing was deleted. Show the latest version so the user decides again knowingly.
 				confirming = false;
-				attempt++;
-				showToast(
-					'error',
-					'Someone else changed this person, so nothing was deleted. This is the latest version; try again if you still want to.'
-				);
+				if (stillHere()) {
+					// Nothing was deleted. Show the latest version so the user decides again knowingly.
+					attempt++;
+					showToast(
+						'error',
+						'Someone else changed this person, so nothing was deleted. This is the latest version; try again if you still want to.'
+					);
+				} else {
+					showToast('error', `Someone else changed ${person.name}, so nothing was deleted.`);
+				}
 			} else {
 				// Includes FAILED_PRECONDITION, whose message explains what has to change first.
 				confirmError = describeError(error);

@@ -240,6 +240,14 @@ SvelteKit `load` functions. GraphQL types are generated from the gateway's schem
 - Committing the generated types keeps the Docker build independent of the backend schema file;
   CI regenerates them and fails if they differ.
 
+**Saving.** While a save is in flight, the form's fields are disabled, so what the user sees
+is what was sent; they are re-enabled if the save fails, with focus on the first problem.
+The user can still leave the page. The save then carries on: aborting the request would not
+undo a change the server may already have made. Its result is confirmed with a toast, but
+the page that started it no longer navigates or updates (`trackVisit` in `navigation.ts`).
+Creating, editing and deleting movies and people, and removing artwork, all follow this
+rule.
+
 **Testing.** Form and formatting rules live in plain TypeScript modules (`format.ts`, `forms.ts`)
 with Vitest tests in Node. Component tests would need a browser in the CI web job, and the
 Playwright smoke test already drives the real components end to end.
