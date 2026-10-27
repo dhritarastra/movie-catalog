@@ -3,7 +3,7 @@ package com.moviecatalog.gateway.graphql
 import graphql.ErrorClassification
 
 /**
- * The `extensions.code` values the web app can rely on (docs/PLAN.md §7). Each one tells the UI
+ * The `extensions.code` values the web app can rely on. Each one tells the UI
  * what to do: show field errors, reload, explain, or offer a retry.
  */
 enum class ErrorCode : ErrorClassification {

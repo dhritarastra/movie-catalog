@@ -1,44 +1,59 @@
 package com.moviecatalog.catalog.movie
 
+import com.moviecatalog.catalog.common.currentTimestamp
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
+import jakarta.persistence.Id
+import jakarta.persistence.PreUpdate
+import jakarta.persistence.Table
+import jakarta.persistence.Version
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
-data class Movie(
-    val id: UUID,
-    val title: String,
-    val synopsis: String?,
-    val releaseDate: LocalDate?,
-    val runtimeMinutes: Int?,
-    val genres: List<String>,
-    val artworkId: UUID?,
-    val version: Int,
-    val createdAt: Instant,
-    val updatedAt: Instant,
-)
+/** A movie, mapped to the `movie` table created by V1__create_movie.sql. */
+@Entity
+@Table(name = "movie")
+class Movie(
+    var title: String,
+    var synopsis: String?,
+    var releaseDate: LocalDate?,
+    var runtimeMinutes: Int?,
+    // A Postgres text[] column.
+    @field:JdbcTypeCode(SqlTypes.ARRAY)
+    var genres: List<String>,
+) {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    var id: UUID? = null
+        protected set
 
-/** Editable fields as received, before validation. */
-data class MovieInput(
-    val title: String,
-    val synopsis: String?,
-    val releaseDate: String?,
-    val runtimeMinutes: Int?,
-    val genres: List<String>,
-)
+    // Owned by media-service, so there is no foreign key across the service boundary. It changes
+    // only through MovieService.setArtwork and clearArtwork, never through an edit.
+    var artworkId: UUID? = null
 
-/** Editable fields after [MovieValidator] has normalised and checked them. */
-data class MovieDraft(
-    val title: String,
-    val synopsis: String?,
-    val releaseDate: LocalDate?,
-    val runtimeMinutes: Int?,
-    val genres: List<String>,
-)
+    /**
+     * Starts at 1 and goes up by one with every change. Hibernate puts the version it read into
+     * each UPDATE and DELETE, so a write that lost a race to another one fails instead of
+     * overwriting it.
+     */
+    @Version
+    var version: Int = 1
+        protected set
 
-data class MoviePage(val movies: List<Movie>, val totalCount: Int)
+    @Column(updatable = false)
+    var createdAt: Instant = currentTimestamp()
+        protected set
 
-/** Result of attaching or removing artwork: the updated movie and the artwork it replaced, if any. */
-data class ArtworkChange(val movie: Movie, val previousArtworkId: UUID?)
+    var updatedAt: Instant = createdAt
+        protected set
 
-/** A deleted movie's ID and the artwork it had, which the gateway then deletes from media. */
-data class DeletedMovie(val id: UUID, val artworkId: UUID?)
+    @PreUpdate
+    protected fun touch() {
+        updatedAt = currentTimestamp()
+    }
+}

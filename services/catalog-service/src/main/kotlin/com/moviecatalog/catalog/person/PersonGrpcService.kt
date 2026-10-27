@@ -29,11 +29,11 @@ class PersonGrpcService(private val people: PersonService) : PersonServiceGrpc.P
         responseObserver.complete(people.get(RequestArguments.uuid("id", request.id)).toProto())
 
     override fun listPeople(request: ListPeopleRequest, responseObserver: StreamObserver<ListPeopleResponse>) {
-        val page = people.list(RequestArguments.page(request.page.offset, request.page.limit))
+        val page = people.list(request.page.offset, request.page.limit)
         responseObserver.complete(
             ListPeopleResponse.newBuilder()
-                .addAllPeople(page.people.map { it.toProto() })
-                .setTotalCount(page.totalCount)
+                .addAllPeople(page.content.map { it.toProto() })
+                .setTotalCount(page.totalElements.toInt())
                 .build(),
         )
     }
@@ -55,7 +55,7 @@ class PersonGrpcService(private val people: PersonService) : PersonServiceGrpc.P
 }
 
 private fun PersonFields.toInput() =
-    PersonInput(
+    PersonInput.normalised(
         name = name,
         bio = if (hasBio()) bio else null,
         birthDate = if (hasBirthDate()) birthDate else null,
@@ -64,7 +64,7 @@ private fun PersonFields.toInput() =
 // Receivers are named explicitly: inside the builder's apply, a bare `bio` would be the builder's own field.
 private fun Person.toProto(): PersonProto =
     PersonProto.newBuilder()
-        .setId(id.toString())
+        .setId(requireNotNull(id) { "a saved person has an id" }.toString())
         .setName(name)
         .setVersion(version)
         .setCreatedAt(createdAt.toTimestamp())

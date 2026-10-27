@@ -6,6 +6,7 @@ import com.google.rpc.Code
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.protobuf.StatusProto
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.grpc.server.exception.GrpcExceptionHandler
 import org.springframework.stereotype.Component
 
@@ -21,6 +22,9 @@ class CatalogGrpcExceptionHandler : GrpcExceptionHandler {
             is NotFoundException -> Status.NOT_FOUND.withDescription(exception.message).asException()
             is VersionConflictException -> Status.ABORTED.withDescription(exception.message).asException()
             is InvalidArgumentException -> invalidArgument(exception)
+            // Two writes raced and this one lost: the row changed after it was read.
+            is OptimisticLockingFailureException ->
+                Status.ABORTED.withDescription("Someone else changed this at the same moment; reload and try again").asException()
             else -> null
         }
 

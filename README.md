@@ -6,8 +6,7 @@ services talk to each other over gRPC.
 
 > **Status: in progress.** You can list, create, view, edit and delete movies and people (cast
 > and creators), and upload, replace and remove movie artwork, through the whole stack. Crediting
-> people on movies and search are next; see the schedule in
-> [docs/PLAN.md](docs/PLAN.md#11-schedule-26-october-to-1-november-2026).
+> people on movies and search are next.
 
 ## Architecture
 
@@ -208,14 +207,70 @@ Images are JPEG or PNG, up to 5 MB and 8000×8000 pixels. Errors carry `extensio
 (`BAD_REQUEST` with `fieldErrors`, `NOT_FOUND`, `CONFLICT`, `RESOURCE_EXHAUSTED`,
 `SERVICE_UNAVAILABLE`, ...).
 
-## Documentation
-
-- [docs/PLAN.md](docs/PLAN.md): scope, architecture, contracts, testing gates and schedule
-- [docs/DECISIONS.md](docs/DECISIONS.md): decisions, trade-offs and known limitations
-- [docs/AI_USAGE.md](docs/AI_USAGE.md): how AI tools were used and how their output was checked
-
 ## How AI tools were used
 
-Claude Code was used for planning, version research and generating code. Astra and Codex
-reviewed the plan and the code. Every change is checked by building and testing it, by running
-it, and by my own review. The full log is in [docs/AI_USAGE.md](docs/AI_USAGE.md).
+I used AI tools as assistants, the way I would use a search engine or a second reviewer. The
+scope and design decisions are mine, and every change was built, tested and run before it was
+committed.
+
+**Tools**
+- **Claude Code** (Anthropic): turning the brief into a plan, checking current library
+  versions, and writing code and tests from my prompts, one slice at a time.
+- **Astra**, a second AI agent: reviewed the plan and the first working slice.
+- **Codex** (OpenAI): independent reviews of individual commits.
+
+**How the work was done.** Green steps are done by an AI tool, orange ones by me; nothing moves
+on without my decision.
+
+```mermaid
+flowchart LR
+    subgraph plan [1. Plan, once]
+        direction TB
+        Brief[Brief]:::doc --> Draft[Plan drafted:<br/>scope, contracts, test gates]:::ai
+        Draft --> Challenge[Reviewed by Astra<br/>and Codex]:::ai --> Cut[I choose the scope<br/>and what to cut]:::human
+    end
+
+    subgraph slice [2. One loop per feature]
+        direction TB
+        Build[Build end to end<br/>with tests]:::ai --> Verify[verify:<br/>build, tests, stack, smoke]:::ai
+        Verify --> Review[code-reviewer agent<br/>or Codex review]:::ai --> Pick[I pick the findings]:::human
+        Pick --> Fix[Reproduce, fix, add a test<br/>that fails without the fix]:::ai --> Check[I check the screens<br/>in a browser]:::human
+    end
+
+    subgraph ship [3. Ship]
+        direction TB
+        Commit[I approve commit<br/>and push]:::human --> CI[CI: the same checks<br/>on every push]:::doc
+    end
+
+    plan --> slice --> ship
+
+    classDef doc fill:#3B82F6,stroke:#1E3A8A,color:#fff
+    classDef ai fill:#10B981,stroke:#064E3B,color:#fff
+    classDef human fill:#F59E0B,stroke:#78350F,color:#fff
+```
+
+The loop is written down in the repository, as plain Markdown that Claude Code reads:
+
+| File | What it is |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | The conventions every run follows: stack, code style, testing rules, the process |
+| [`.claude/skills/verify`](.claude/skills/verify/SKILL.md) | The checks run after every change, reported as PASS or FAIL |
+| [`.claude/skills/gen-tests`](.claude/skills/gen-tests/SKILL.md) | Where each kind of test goes, and the edge-case checklist |
+| [`.claude/skills/ship-slice`](.claude/skills/ship-slice/SKILL.md) | The whole loop for one feature |
+| [`.claude/agents/code-reviewer.md`](.claude/agents/code-reviewer.md) | A read-only reviewer that runs the tests but never edits code |
+
+I wrote these down partway through, once the loop had settled over the first slices, and used
+them from then on. My plan and working log stay outside the repository.
+
+**What the checks caught**, for example:
+- Spring for GraphQL answered multipart uploads with HTTP 415 before the upload handler could
+  run; the handler is now a router function ordered ahead of it.
+- A Kotlin builder field shadowed the value being copied, so every artwork change reported a
+  previous artwork of `""`. The tests caught it before commit.
+- Truncated JPEGs were accepted, failed image downloads could be cached for a year, and a JSON
+  `null` in a multipart request caused a 500. All three were found in review and reproduced.
+- Names were sorted byte by byte on the Alpine Postgres image, so "Émile" came after "zoe".
+  Found by sending requests by hand; the name column now uses an ICU collation.
+- Forms stayed editable during a save, and leaving the page mid-save was undone when the
+  response arrived. Found in review with delayed responses; the smoke test now holds a
+  response to check both.

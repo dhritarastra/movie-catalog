@@ -13,8 +13,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 /**
- * Uploads artwork and attaches it to a movie, following the consistency rules in
- * docs/PLAN.md §6. Media and catalog are separate services, so there is no shared transaction:
+ * Uploads artwork and attaches it to a movie. Media and catalog are separate services, so there is no shared transaction:
  *
  * - The movie is checked first so a missing movie never costs an upload.
  * - After uploading, the catalog attaches the new artwork if the movie is still at the

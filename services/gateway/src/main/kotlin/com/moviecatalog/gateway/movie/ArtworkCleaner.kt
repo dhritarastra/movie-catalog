@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component
 
 /**
  * Deletes artwork files that the catalog no longer references: replaced, removed, belonging to a
- * deleted movie, or never attached. Callers only do this after the catalog has confirmed its side
- * (PLAN.md §6), so a failure here can leave an orphaned file but never a movie pointing at a
+ * deleted movie, or never attached. Callers only do this after the catalog has confirmed its side,
+ * so a failure here can leave an orphaned file but never a movie pointing at a
  * missing one. Failures are logged rather than failing the user's request, which already succeeded.
  */
 @Component

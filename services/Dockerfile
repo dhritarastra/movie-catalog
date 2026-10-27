@@ -12,7 +12,7 @@ COPY proto proto
 COPY services services
 RUN ./gradlew --no-daemon --console=plain bootJar
 
-# Health probe for the gRPC services: calls the standard grpc.health.v1 service (DECISIONS D2).
+# Health probe for the gRPC services: calls the standard grpc.health.v1 service on the port that serves traffic.
 # Pinned by version and by the checksums published with the release.
 FROM eclipse-temurin:21-jre AS probe
 ARG PROBE_VERSION=v0.4.59
