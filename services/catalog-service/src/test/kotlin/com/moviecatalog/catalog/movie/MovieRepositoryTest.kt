@@ -43,11 +43,12 @@ class MovieRepositoryTest(
     }
 
     @Test
-    fun `an update raises the version by one and moves updatedAt, but not createdAt`() {
+    fun `a marked update raises the version by one and moves updatedAt, but not createdAt`() {
         val saved = repository.saveAndFlush(Movie("Arrival", null, null, null, emptyList()))
         val createdAt = saved.createdAt
 
         saved.title = "Arrival (2016)"
+        saved.markUpdated()
         repository.saveAndFlush(saved)
         entityManager.clear()
 
@@ -55,6 +56,17 @@ class MovieRepositoryTest(
         assertThat(read.version).isEqualTo(2)
         assertThat(read.createdAt).isEqualTo(createdAt)
         assertThat(read.updatedAt).isAfter(createdAt)
+    }
+
+    @Test
+    fun `a marked update with identical values still raises the version`() {
+        val saved = repository.saveAndFlush(Movie("Arrival", null, null, null, emptyList()))
+
+        saved.markUpdated()
+        repository.saveAndFlush(saved)
+        entityManager.clear()
+
+        assertThat(repository.findById(saved.id!!).orElseThrow().version).isEqualTo(2)
     }
 
     @Test

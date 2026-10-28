@@ -91,7 +91,18 @@ class MovieServiceTest {
         assertThat(updated.runtimeMinutes).isNull()
         assertThat(updated.genres).isEmpty()
         assertThat(updated.artworkId).isEqualTo(artworkId)
+        assertThat(updated.updatedAt).isAfter(updated.createdAt)
         verify { repository.saveAndFlush(stored) }
+    }
+
+    @Test
+    fun `saving identical values still marks the movie updated, so its version will advance`() {
+        val stored = Movie("Arrival", null, null, null, emptyList())
+        every { repository.findById(id) } returns Optional.of(stored)
+
+        val updated = service.update(id, 1, MovieInput("Arrival", null, null, null, emptyList()))
+
+        assertThat(updated.updatedAt).isAfter(updated.createdAt)
     }
 
     @Test
@@ -146,6 +157,7 @@ class MovieServiceTest {
 
         assertThat(change.movie.artworkId).isEqualTo(next)
         assertThat(change.previousArtworkId).isEqualTo(previous)
+        assertThat(change.movie.updatedAt).isAfter(change.movie.createdAt)
     }
 
     @Test
@@ -155,6 +167,7 @@ class MovieServiceTest {
         val change = service.clearArtwork(id, 1)
         assertThat(change.movie.artworkId).isNull()
         assertThat(change.previousArtworkId).isEqualTo(previous)
+        assertThat(change.movie.updatedAt).isAfter(change.movie.createdAt)
 
         every { repository.findById(id) } returns Optional.of(Movie("Arrival", null, null, null, emptyList()))
         assertThat(service.clearArtwork(id, 1).previousArtworkId).isNull()
