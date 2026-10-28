@@ -95,7 +95,7 @@ class ArtworkServiceTest {
     @Test
     fun `delete removes the row and the files, and reports whether anything existed`() {
         val artwork = service.store(upload(TestImages.png(8, 8)), 1, "hash")
-        every { repository.removeById(artwork.id) } returnsMany listOf(1L, 0L)
+        every { repository.removeById(artwork.id) } returnsMany listOf(1, 0)
 
         assertThat(service.delete(artwork.id)).isTrue()
         assertThat(dir.resolve(artwork.id.toString())).doesNotExist()
