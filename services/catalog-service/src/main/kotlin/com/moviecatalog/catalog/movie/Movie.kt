@@ -6,7 +6,6 @@ import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
-import jakarta.persistence.PreUpdate
 import jakarta.persistence.Table
 import jakarta.persistence.Version
 import org.hibernate.annotations.JdbcTypeCode
@@ -53,13 +52,14 @@ class Movie(
         protected set
 
     /**
-     * Mark an accepted mutation even when its submitted values are unchanged. Making the
-     * timestamp dirty causes Hibernate to issue one version-checked UPDATE on flush.
-     * Keep it distinct at Postgres microsecond precision even for two immediate writes.
+     * Called by the service for every accepted change, even when the submitted values are
+     * unchanged: making the timestamp dirty causes Hibernate to issue one version-checked UPDATE
+     * on flush. It is a plain call rather than a @PreUpdate callback, so each write sets the
+     * timestamp once, in one obvious place. Keep it distinct at Postgres microsecond precision
+     * even for two immediate writes.
      * JPA's OPTIMISTIC_FORCE_INCREMENT lock is not used instead: when a field does change, it
      * raises the version twice (once for the UPDATE, once for the forced increment).
      */
-    @PreUpdate
     fun markUpdated() {
         updatedAt = maxOf(currentTimestamp(), updatedAt.plusNanos(1_000))
     }

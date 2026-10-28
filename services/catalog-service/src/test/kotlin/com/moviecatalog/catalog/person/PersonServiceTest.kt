@@ -76,7 +76,18 @@ class PersonServiceTest {
         assertThat(updated.name).isEqualTo("New")
         assertThat(updated.bio).isNull()
         assertThat(updated.birthDate).isNull()
+        assertThat(updated.updatedAt).isAfter(updated.createdAt)
         verify { repository.saveAndFlush(stored) }
+    }
+
+    @Test
+    fun `saving identical values still marks the person updated, so their version will advance`() {
+        val stored = Person("Amy Adams", null, null)
+        every { repository.findById(id) } returns Optional.of(stored)
+
+        val updated = service.update(id, 1, PersonInput("Amy Adams", null, null))
+
+        assertThat(updated.updatedAt).isAfter(updated.createdAt)
     }
 
     @Test

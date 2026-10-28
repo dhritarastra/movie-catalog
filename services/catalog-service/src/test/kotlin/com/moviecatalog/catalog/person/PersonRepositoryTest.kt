@@ -38,14 +38,18 @@ class PersonRepositoryTest(
     }
 
     @Test
-    fun `an update raises the version by one`() {
+    fun `a marked update raises the version by one and moves updatedAt`() {
         val saved = repository.saveAndFlush(Person("Amy Adams", null, null))
+        val createdAt = saved.createdAt
 
         saved.bio = "Actor."
+        saved.markUpdated()
         repository.saveAndFlush(saved)
         entityManager.clear()
 
-        assertThat(repository.findById(saved.id!!).orElseThrow().version).isEqualTo(2)
+        val read = repository.findById(saved.id!!).orElseThrow()
+        assertThat(read.version).isEqualTo(2)
+        assertThat(read.updatedAt).isAfter(createdAt)
     }
 
     @Test
