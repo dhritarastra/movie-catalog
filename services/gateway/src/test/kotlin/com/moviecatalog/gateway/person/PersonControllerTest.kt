@@ -46,6 +46,21 @@ class PersonControllerTest(@Autowired graphQlService: ExecutionGraphQlService) {
     }
 
     @Test
+    fun `passes a name filter through, and sends none when it is omitted`() {
+        every { catalog.listPeople(0, 20, "amy") } returns ListPeopleResponse.newBuilder().setTotalCount(0).build()
+
+        graphQl.document("""{ people(nameContains: "amy") { totalCount } }""")
+            .execute()
+            .path("people.totalCount").entity(Int::class.java).isEqualTo(0)
+
+        verify(exactly = 1) { catalog.listPeople(0, 20, "amy") }
+
+        every { catalog.listPeople(0, 20, "") } returns ListPeopleResponse.newBuilder().setTotalCount(0).build()
+        graphQl.document("{ people { totalCount } }").execute().path("people.totalCount").entity(Int::class.java).isEqualTo(0)
+        verify(exactly = 1) { catalog.listPeople(0, 20, "") }
+    }
+
+    @Test
     fun `passes paging through unchanged, so the catalog can reject out-of-range values`() {
         every { catalog.listPeople(0, 500) } throws Status.INVALID_ARGUMENT.withDescription("page.limit: must be between 1 and 100").asRuntimeException()
 

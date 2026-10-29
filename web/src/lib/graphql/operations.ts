@@ -177,13 +177,12 @@ export const MovieCreditsQuery = graphql(`
 `);
 
 /**
- * The people offered when crediting someone: alphabetical, up to the API's page maximum. 100 is
- * catalog.paging.max-limit in the catalog's application.yml; lowering that below 100 would make
- * this query fail. The picker becomes a search when search arrives.
+ * People offered when crediting someone: those whose name contains the typed text, or everyone
+ * when it is blank, alphabetically. The page size is the API's default.
  */
 export const PersonPickerQuery = graphql(`
-	query PersonPicker {
-		people(page: { limit: 100 }) {
+	query PersonPicker($nameContains: String) {
+		people(nameContains: $nameContains) {
 			totalCount
 			items {
 				id

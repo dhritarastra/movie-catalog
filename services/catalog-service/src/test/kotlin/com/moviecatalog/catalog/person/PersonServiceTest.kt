@@ -1,6 +1,7 @@
 package com.moviecatalog.catalog.person
 
 import com.moviecatalog.catalog.common.FailedPreconditionException
+import com.moviecatalog.catalog.common.FieldViolation
 import com.moviecatalog.catalog.common.InvalidArgumentException
 import com.moviecatalog.catalog.common.NotFoundException
 import com.moviecatalog.catalog.common.Paging
@@ -68,6 +69,29 @@ class PersonServiceTest {
 
         assertThat(pageable.captured.sort).isEqualTo(Sort.by("name", "id"))
         assertThat(pageable.captured.pageSize).isEqualTo(25)
+    }
+
+    @Test
+    fun `a name filter is trimmed and narrows the list, and a blank one lists everyone`() {
+        every { repository.findAllByNameContainingIgnoreCase("Amy", any()) } returns PageImpl(emptyList())
+        every { repository.findAll(any<Pageable>()) } returns PageImpl(emptyList())
+
+        service.list(0, 20, "  Amy ")
+        service.list(0, 20, "   ")
+
+        verify(exactly = 1) { repository.findAllByNameContainingIgnoreCase("Amy", any()) }
+        verify(exactly = 1) { repository.findAll(any<Pageable>()) }
+    }
+
+    @Test
+    fun `a name filter of 200 characters is accepted, and one longer is rejected before any query`() {
+        every { repository.findAllByNameContainingIgnoreCase(any(), any()) } returns PageImpl(emptyList())
+        service.list(0, 20, "x".repeat(200))
+
+        val error = assertThrows<InvalidArgumentException> { service.list(0, 20, "x".repeat(201)) }
+
+        assertThat(error.violations).containsExactly(FieldViolation("name_contains", "must be at most 200 characters"))
+        verify(exactly = 1) { repository.findAllByNameContainingIgnoreCase(any(), any()) }
     }
 
     @Test

@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Size
  */
 data class PersonInput(
     @field:NotBlank(message = "is required")
-    @field:Size(max = 200, message = "must be at most {max} characters")
+    @field:Size(max = NAME_MAX, message = "must be at most {max} characters")
     val name: String,
 
     @field:Size(max = 2000, message = "must be at most {max} characters")
@@ -20,6 +20,9 @@ data class PersonInput(
     val birthDate: String?,
 ) {
     companion object {
+        /** The longest name, as the CHECK constraint in V2__create_person.sql allows. */
+        const val NAME_MAX = 200
+
         /** Trims text and turns blank optional text into null. */
         fun normalised(name: String, bio: String?, birthDate: String?) =
             PersonInput(

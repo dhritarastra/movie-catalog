@@ -156,7 +156,9 @@ export type MovieCreditsQueryVariables = Exact<{
 
 export type MovieCreditsQuery = { movie: { id: string, cast: Array<{ id: string, type: CreditType, characterName: string | null, billingOrder: number, person: { id: string, name: string } | null }>, creators: Array<{ id: string, type: CreditType, characterName: string | null, billingOrder: number, person: { id: string, name: string } | null }> } | null };
 
-export type PersonPickerQueryVariables = Exact<{ [key: string]: never; }>;
+export type PersonPickerQueryVariables = Exact<{
+  nameContains?: string | null | undefined;
+}>;
 
 
 export type PersonPickerQuery = { people: { totalCount: number, items: Array<{ id: string, name: string }> } };
@@ -422,8 +424,8 @@ export const MovieCreditsDocument = new TypedDocumentString(`
   }
 }`) as unknown as TypedDocumentString<MovieCreditsQuery, MovieCreditsQueryVariables>;
 export const PersonPickerDocument = new TypedDocumentString(`
-    query PersonPicker {
-  people(page: { limit: 100 }) {
+    query PersonPicker($nameContains: String) {
+  people(nameContains: $nameContains) {
     totalCount
     items {
       id

@@ -229,6 +229,9 @@ mutation {
 A movie's `cast` and `creators`, and a person's `credits`, are loaded in one catalog call per
 field for a whole page, not one call per movie or person.
 
+`people(nameContains: "amy")` lists only people whose name contains the text, ignoring case;
+the credit form uses it to find anyone, however long the list of people.
+
 Artwork is uploaded with the
 [GraphQL multipart request spec](https://github.com/jaydenseric/graphql-multipart-request-spec):
 

@@ -57,6 +57,10 @@ message GetPeopleByIdsResponse {
 
 message ListPeopleRequest {
   PageRequest page = 1;
+  // Only people whose name contains this text, ignoring case (non-ASCII letters too, so "ZOË"
+  // finds "Zoë") but not accents ("zoe" does not find "Zoë"); blank lists everyone. At most 200
+  // characters. %, _ and \ are matched as themselves, never as wildcards.
+  string name_contains = 2;
 }
 
 message ListPeopleResponse {

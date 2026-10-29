@@ -44,38 +44,58 @@
 	let form: HTMLFormElement | undefined = $state();
 	const visit = trackVisit();
 
-	type Choices =
+	// Only an added credit needs a person chosen: they are found by typing part of their name.
+	const SEARCH_DELAY_MS = 250;
+	type Matches =
 		| { status: 'loading' }
 		| { status: 'error'; message: string }
-		| { status: 'ready'; people: { id: string; name: string }[]; total: number };
-	let choices = $state<Choices>({ status: 'loading' });
+		| { status: 'ready'; text: string; people: { id: string; name: string }[]; total: number };
+	let query = $state('');
+	let matches = $state<Matches>({ status: 'loading' });
+	let searching = $state(false);
+	let chosenName = $state<string | null>(null);
 	let attempt = $state(0);
 
-	// Only an added credit needs a person chosen. Until search exists, the first 100 people
-	// alphabetically are offered.
+	// Derived values only notify when they change, so a trailing space does not search again.
+	const searchText = $derived(query.trim());
+
 	$effect(() => {
 		if (!adding) return;
+		const text = searchText;
 		void attempt;
 		const controller = new AbortController();
-		choices = { status: 'loading' };
-		request(PersonPickerQuery, {}, { signal: controller.signal })
-			.then(async (data) => {
-				choices = { status: 'ready', people: data.people.items, total: data.people.totalCount };
-				// The list was disabled while loading, so focus moves into the form once it can.
-				await tick();
-				focusField('personId');
-			})
-			.catch((error) => {
-				if (error?.name !== 'AbortError')
-					choices = { status: 'error', message: describeError(error) };
-			});
-		return () => controller.abort();
+		// Waits for a pause in typing. The cleanup cancels both the wait and the request it
+		// started, so an older, slower answer can never replace a newer one.
+		const timer = setTimeout(
+			() => {
+				searching = true;
+				request(PersonPickerQuery, { nameContains: text || null }, { signal: controller.signal })
+					.then((data) => {
+						matches = {
+							status: 'ready',
+							text,
+							people: data.people.items,
+							total: data.people.totalCount
+						};
+					})
+					.catch((error) => {
+						if (error?.name !== 'AbortError')
+							matches = { status: 'error', message: describeError(error) };
+					})
+					.finally(() => {
+						if (!controller.signal.aborted) searching = false;
+					});
+			},
+			text ? SEARCH_DELAY_MS : 0
+		);
+		return () => {
+			clearTimeout(timer);
+			controller.abort();
+		};
 	});
 
 	// Opening the form moves focus into it; when editing, the person is fixed, so the role is first.
-	onMount(() => {
-		if (!adding) focusField('type');
-	});
+	onMount(() => focusField(adding ? 'personId' : 'type'));
 
 	function focusField(id: string) {
 		form?.querySelector<HTMLElement>(`#${id}`)?.focus();
@@ -126,44 +146,68 @@
 	{/if}
 
 	<fieldset disabled={saving}>
-		<div class="row">
-			<div class="field">
-				<label for="personId"
-					>Person {#if adding}<span aria-hidden="true">*</span>{/if}</label
-				>
-				{#if !adding}
-					<input id="personId" value={person?.name} readonly />
-				{:else if choices.status === 'loading'}
-					<select id="personId" disabled aria-busy="true"><option>Loading people…</option></select>
-				{:else if choices.status === 'error'}
-					<p class="error" role="alert">{choices.message}</p>
-					<button class="button" type="button" onclick={() => attempt++}>Retry</button>
-				{:else if choices.people.length === 0}
-					<p class="muted">
-						No people yet. <a href={resolve('/people/new')}>Add a person</a> first.
-					</p>
-				{:else}
-					<select
-						id="personId"
-						bind:value={personId}
-						required
-						aria-invalid={!!errors.personId}
-						aria-describedby={errors.personId ? 'personId-error' : undefined}
-					>
-						<option value="" disabled>Choose a person</option>
-						{#each choices.people as choice (choice.id)}
-							<option value={choice.id}>{choice.name}</option>
-						{/each}
-					</select>
-					{#if choices.total > choices.people.length}
-						<p class="muted hint">
-							Showing the first {choices.people.length} of {choices.total} people, by name.
-						</p>
+		<div class="field">
+			<label for="personId" id="personId-label"
+				>Person {#if adding}<span aria-hidden="true">*</span>{/if}</label
+			>
+			{#if !adding}
+				<input id="personId" value={person?.name} readonly />
+			{:else}
+				<input
+					id="personId"
+					type="search"
+					bind:value={query}
+					maxlength="200"
+					autocomplete="off"
+					placeholder="Type part of a name"
+					aria-invalid={!!errors.personId}
+					aria-describedby={errors.personId ? 'personId-status personId-error' : 'personId-status'}
+				/>
+				<!-- Everything a search changes is announced here, so the results are heard as well as seen. -->
+				<p class="muted hint" id="personId-status" aria-live="polite">
+					{#if chosenName}Chosen: <strong>{chosenName}</strong>.{/if}
+					{#if searching || matches.status === 'loading'}
+						Searching…
+					{:else if matches.status === 'ready' && matches.people.length === 0}
+						{matches.text ? `No one's name contains “${matches.text}”.` : 'No people yet.'}
+					{:else if matches.status === 'ready' && matches.total > matches.people.length}
+						Showing {matches.people.length} of {matches.total} people{matches.text
+							? ' matching'
+							: ''}. Type more of the name to narrow them down.
 					{/if}
+				</p>
+				{#if matches.status === 'error'}
+					<p class="error" role="alert">{matches.message}</p>
+					<button class="button" type="button" onclick={() => attempt++}>Retry</button>
+				{:else if matches.status === 'ready' && matches.people.length === 0}
+					<p class="muted"><a href={resolve('/people/new')}>Add a person</a> first.</p>
+				{:else if matches.status === 'ready'}
+					<div
+						class="matches"
+						role="radiogroup"
+						aria-labelledby="personId-label personId-matches"
+						aria-required="true"
+					>
+						<span class="visually-hidden" id="personId-matches">matching people</span>
+						{#each matches.people as match (match.id)}
+							<label class="match">
+								<input
+									type="radio"
+									name="credit-person"
+									value={match.id}
+									bind:group={personId}
+									onchange={() => (chosenName = match.name)}
+								/>
+								{match.name}
+							</label>
+						{/each}
+					</div>
 				{/if}
-				{#if errors.personId}<p class="error" id="personId-error">{errors.personId}</p>{/if}
-			</div>
+			{/if}
+			{#if errors.personId}<p class="error" id="personId-error">{errors.personId}</p>{/if}
+		</div>
 
+		<div class="row">
 			<div class="field">
 				<label for="type">Role</label>
 				<select id="type" bind:value={type}>
@@ -171,9 +215,7 @@
 				</select>
 				{#if errors.type}<p class="error" id="type-error">{errors.type}</p>{/if}
 			</div>
-		</div>
 
-		<div class="row">
 			{#if type === 'CAST'}
 				<div class="field">
 					<label for="characterName">Character</label>
@@ -190,25 +232,25 @@
 					{/if}
 				</div>
 			{/if}
+		</div>
 
-			<div class="field">
-				<label for="billingOrder">Billing order</label>
-				<input
-					id="billingOrder"
-					type="number"
-					min="0"
-					max={MAX_BILLING_ORDER}
-					step="1"
-					bind:value={billingOrder}
-					aria-invalid={!!errors.billingOrder}
-					aria-describedby={errors.billingOrder ? 'billingOrder-error' : 'billingOrder-hint'}
-				/>
-				{#if errors.billingOrder}
-					<p class="error" id="billingOrder-error">{errors.billingOrder}</p>
-				{:else}
-					<p class="muted hint" id="billingOrder-hint">Lower numbers are listed first.</p>
-				{/if}
-			</div>
+		<div class="field">
+			<label for="billingOrder">Billing order</label>
+			<input
+				id="billingOrder"
+				type="number"
+				min="0"
+				max={MAX_BILLING_ORDER}
+				step="1"
+				bind:value={billingOrder}
+				aria-invalid={!!errors.billingOrder}
+				aria-describedby={errors.billingOrder ? 'billingOrder-error' : 'billingOrder-hint'}
+			/>
+			{#if errors.billingOrder}
+				<p class="error" id="billingOrder-error">{errors.billingOrder}</p>
+			{:else}
+				<p class="muted hint" id="billingOrder-hint">Lower numbers are listed first.</p>
+			{/if}
 		</div>
 	</fieldset>
 
@@ -219,3 +261,28 @@
 		</button>
 	</div>
 </form>
+
+<style>
+	.matches {
+		display: grid;
+		gap: 0.25rem;
+		max-height: 16rem;
+		overflow-y: auto;
+		padding: 0.25rem 0;
+	}
+
+	.match {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-weight: 400;
+		overflow-wrap: anywhere;
+	}
+
+	/* The form's text-input sizing does not apply to radio buttons. */
+	.match input {
+		width: auto;
+		min-height: auto;
+		margin: 0;
+	}
+</style>

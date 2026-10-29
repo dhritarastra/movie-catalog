@@ -81,6 +81,52 @@ class PersonRepositoryTest(
     }
 
     @Test
+    fun `finds names containing the text, ignoring case, in name order`() {
+        listOf("Amy Adams", "Jeremy Renner", "amy poehler", "Tamy Lee").forEach { repository.save(Person(it, null, null)) }
+        repository.flush()
+
+        val found = repository.findAllByNameContainingIgnoreCase("AMY", OffsetPageRequest(0, 10, Sort.by("name", "id")))
+
+        assertThat(found.content.map { it.name }).containsExactly("Amy Adams", "amy poehler", "Tamy Lee")
+        assertThat(found.totalElements).isEqualTo(3)
+    }
+
+    @Test
+    fun `percent and underscore in the text are matched literally, not as wildcards`() {
+        listOf("100% Real", "1000 Real", "A_B", "AxB").forEach { repository.save(Person(it, null, null)) }
+        repository.flush()
+        val byName = Sort.by("name", "id")
+
+        assertThat(repository.findAllByNameContainingIgnoreCase("0%", OffsetPageRequest(0, 10, byName)).content.map { it.name })
+            .containsExactly("100% Real")
+        assertThat(repository.findAllByNameContainingIgnoreCase("_", OffsetPageRequest(0, 10, byName)).content.map { it.name })
+            .containsExactly("A_B")
+    }
+
+    @Test
+    fun `ignoring case covers non-ASCII letters, but accents still count`() {
+        listOf("Zoë Ünal", "Zoe Unal").forEach { repository.save(Person(it, null, null)) }
+        repository.flush()
+        val byName = Sort.by("name", "id")
+
+        assertThat(repository.findAllByNameContainingIgnoreCase("ZOË", OffsetPageRequest(0, 10, byName)).content.map { it.name })
+            .containsExactly("Zoë Ünal")
+        assertThat(repository.findAllByNameContainingIgnoreCase("ë ü", OffsetPageRequest(0, 10, byName)).content.map { it.name })
+            .containsExactly("Zoë Ünal")
+        assertThat(repository.findAllByNameContainingIgnoreCase("zoe", OffsetPageRequest(0, 10, byName)).content.map { it.name })
+            .containsExactly("Zoe Unal")
+    }
+
+    @Test
+    fun `a backslash in the text is matched literally`() {
+        listOf("""AC\DC""", "ACDC").forEach { repository.save(Person(it, null, null)) }
+        repository.flush()
+
+        assertThat(repository.findAllByNameContainingIgnoreCase("""\""", OffsetPageRequest(0, 10, Sort.by("name"))).content.map { it.name })
+            .containsExactly("""AC\DC""")
+    }
+
+    @Test
     fun `case and accent distinctions precede the id tie breaker`() {
         jdbc.sql(
             """
