@@ -3,7 +3,9 @@ package com.moviecatalog.catalog.search
 import com.moviecatalog.catalog.common.FieldViolation
 import com.moviecatalog.catalog.common.InvalidArgumentException
 import com.moviecatalog.catalog.config.SearchProperties
+import com.moviecatalog.catalog.movie.MovieInput
 import com.moviecatalog.catalog.movie.MovieRepository
+import com.moviecatalog.catalog.person.PersonInput
 import com.moviecatalog.catalog.person.PersonRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -41,7 +43,7 @@ class SearchService(
     private fun List<SearchMatch>.idsOf(kind: SearchKind) = filter { it.kind == kind }.map { it.id }
 
     private companion object {
-        // The longest title or name (MovieInput, PersonInput), so a longer query can never match.
-        const val QUERY_MAX = 200
+        // A query longer than the longest title or name could never match.
+        val QUERY_MAX = maxOf(MovieInput.TITLE_MAX, PersonInput.NAME_MAX)
     }
 }
