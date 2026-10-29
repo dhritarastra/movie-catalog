@@ -22,6 +22,8 @@
 	}: Props = $props();
 
 	let dialog: HTMLDialogElement | undefined = $state();
+	// Unique per dialog: a page can have more than one (a movie page has its own and the credits').
+	const uid = $props.id();
 
 	// A native modal dialog: it traps focus, starts on Cancel (the safe choice), and closes on Escape.
 	$effect(() => {
@@ -33,13 +35,13 @@
 
 <dialog
 	bind:this={dialog}
-	aria-labelledby="confirm-title"
-	aria-describedby="confirm-message"
+	aria-labelledby="{uid}-title"
+	aria-describedby="{uid}-message"
 	onclose={onCancel}
 	oncancel={(event) => busy && event.preventDefault()}
 >
-	<h2 id="confirm-title">{title}</h2>
-	<p id="confirm-message">{message}</p>
+	<h2 id="{uid}-title">{title}</h2>
+	<p id="{uid}-message">{message}</p>
 	{#if error}<p class="alert" role="alert">{error}</p>{/if}
 	<div class="actions">
 		<button class="button" type="button" onclick={onCancel} disabled={busy}>Cancel</button>

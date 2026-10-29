@@ -5,7 +5,7 @@ import { png } from './images';
  * The browser smoke test: one flow through the whole stack, extended as
  * features arrive. Everything else is covered by faster tests at lower layers.
  */
-test('create, edit and delete a movie with artwork, and a person, with failures explained', async ({
+test('create, edit and delete a movie with artwork, a person and their credits, with failures explained', async ({
 	page
 }) => {
 	const stamp = Date.now();
@@ -14,6 +14,7 @@ test('create, edit and delete a movie with artwork, and a person, with failures 
 	// Early in the alphabet, so the person is on the first page of the list even with other data.
 	const person = `Ada Smoke ${stamp}`;
 	const editedPerson = `${person} Jr`;
+	const creditedTitle = `Smoke credits ${stamp}`;
 
 	await test.step('the movie list loads', async () => {
 		await page.goto('/movies');
@@ -238,6 +239,159 @@ test('create, edit and delete a movie with artwork, and a person, with failures 
 		await checkPendingDeleteNavigation(page, 'person', editedPerson);
 	});
 
+	await test.step('the person is credited on a movie as cast and as a creator', async () => {
+		await page.goto('/movies/new');
+		await page.getByLabel('Title').fill(creditedTitle);
+		await page.getByRole('button', { name: 'Add movie' }).click();
+		await expect(page.getByRole('heading', { name: creditedTitle, level: 1 })).toBeVisible();
+		await expect(page.getByText('No cast yet.')).toBeVisible();
+		await expect(page.getByText('No creators yet.')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		// Opening the form moves focus into it.
+		await expect(page.getByLabel('Person')).toBeFocused();
+		await page.getByLabel('Person').selectOption({ label: editedPerson });
+		await page.getByLabel('Role').selectOption('CAST');
+		await page.getByLabel('Character').fill('  Louise Banks ');
+		await page.getByLabel('Billing order').fill('1');
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		await expect(page.getByText(`${editedPerson} was credited (Cast).`)).toBeVisible();
+		const cast = page.getByRole('list', { name: 'Cast' });
+		await expect(cast).toContainText(editedPerson);
+		await expect(cast).toContainText('as Louise Banks');
+
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		await page.getByLabel('Person').selectOption({ label: editedPerson });
+		await page.getByLabel('Role').selectOption('DIRECTOR');
+		// Only cast credits have a character, so the field goes away.
+		await expect(page.getByLabel('Character')).toHaveCount(0);
+		// While a form is open, the list's own buttons wait.
+		await expect(
+			page.getByRole('button', { name: `Edit ${editedPerson}'s credit (Cast)` })
+		).toBeDisabled();
+		let adds = 0;
+		page.on('request', (request) => {
+			if (operationName(request) === 'AddCredit') adds++;
+		});
+		const save = await holdResponse(page, 'AddCredit');
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		await save.answered;
+		const saving = page.getByRole('button', { name: 'Saving…' });
+		await expect(saving).toBeDisabled();
+		await expect(page.getByLabel('Role')).toBeDisabled();
+		// A second click while saving sends nothing.
+		await saving.click({ force: true });
+		save.release();
+		const creators = page.getByRole('list', { name: 'Creators' });
+		await expect(creators).toContainText(editedPerson);
+		await expect(creators).toContainText('Director');
+		expect(adds).toBe(1);
+		// Closing the form returns focus to where it was opened from.
+		await expect(page.getByRole('button', { name: 'Add credit' })).toBeFocused();
+	});
+
+	await test.step('the same role twice is refused with an explanation', async () => {
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		await page.getByLabel('Person').selectOption({ label: editedPerson });
+		await page.getByLabel('Role').selectOption('DIRECTOR');
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		await expect(page.getByRole('alert')).toContainText(
+			'This person already has this role on this movie.'
+		);
+		await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+		await expect(page.getByRole('list', { name: 'Creators' }).getByRole('listitem')).toHaveCount(1);
+	});
+
+	await test.step('editing a credit replaces its character and billing order', async () => {
+		await page.getByRole('button', { name: `Edit ${editedPerson}'s credit (Cast)` }).click();
+		// The person cannot change, so focus starts on the role.
+		await expect(page.getByLabel('Role')).toBeFocused();
+		await expect(page.getByLabel('Person')).toHaveValue(editedPerson);
+		await expect(page.getByLabel('Character')).toHaveValue('Louise Banks');
+		await page.getByLabel('Character').fill('Dr. Louise Banks');
+		// An empty or too large billing order is explained before anything is sent.
+		for (const order of ['', '1001']) {
+			await page.getByLabel('Billing order').fill(order);
+			await page.getByRole('button', { name: 'Save credit' }).click();
+			await expect(page.getByText('Enter a whole number from 0 to 1000.')).toBeVisible();
+		}
+		await page.getByLabel('Billing order').fill('0');
+		await page.getByRole('button', { name: 'Save credit' }).click();
+
+		await expect(page.getByText(`${editedPerson}'s credit was updated.`)).toBeVisible();
+		await expect(page.getByRole('list', { name: 'Cast' })).toContainText('as Dr. Louise Banks');
+		await expect(page.getByRole('button', { name: 'Add credit' })).toBeFocused();
+	});
+
+	await test.step('saving a credit that someone else removed explains it and shows the latest list', async () => {
+		await page.getByRole('button', { name: `Edit ${editedPerson}'s credit (Director)` }).click();
+		await removeCreditElsewhere(page, 'creators');
+		await page.getByRole('button', { name: 'Save credit' }).click();
+
+		await expect(
+			page.getByText(`${editedPerson}'s credit had already been removed.`)
+		).toBeVisible();
+		await expect(page.getByText('No creators yet.')).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Save credit' })).toHaveCount(0);
+
+		// Put the director credit back for the steps that follow.
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		await page.getByLabel('Person').selectOption({ label: editedPerson });
+		await page.getByLabel('Role').selectOption('DIRECTOR');
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		await expect(page.getByRole('list', { name: 'Creators' })).toContainText('Director');
+	});
+
+	await test.step('the person page lists their credits, and deleting them is refused until those are removed', async () => {
+		await page
+			.getByRole('list', { name: 'Cast' })
+			.getByRole('link', { name: editedPerson })
+			.click();
+		await expect(page.getByRole('heading', { name: editedPerson, level: 1 })).toBeVisible();
+		const credits = page.getByRole('list', { name: 'Credits' });
+		await expect(credits.getByRole('listitem')).toHaveCount(2);
+		await expect(credits).toContainText('as Dr. Louise Banks');
+		await expect(credits).toContainText('Director');
+
+		await page.getByRole('button', { name: 'Delete', exact: true }).click();
+		const dialog = page.getByRole('dialog', { name: `Delete ${editedPerson}?` });
+		await expect(dialog).toContainText('is credited on a movie. Remove those credits first.');
+		await dialog.getByRole('button', { name: 'Delete person' }).click();
+		await expect(dialog.getByRole('alert')).toContainText('Remove their credits first');
+		await dialog.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByRole('heading', { name: editedPerson, level: 1 })).toBeVisible();
+	});
+
+	await test.step('removing credits asks first and keeps the person', async () => {
+		await page
+			.getByRole('list', { name: 'Credits' })
+			.getByRole('link', { name: creditedTitle })
+			.first()
+			.click();
+		await expect(page.getByRole('heading', { name: creditedTitle, level: 1 })).toBeVisible();
+
+		await page.getByRole('button', { name: `Remove ${editedPerson} (Cast)` }).click();
+		const dialog = page.getByRole('dialog', { name: `Remove ${editedPerson} from this movie?` });
+		await expect(dialog).toContainText(`${editedPerson} stays in the catalog.`);
+		await dialog.getByRole('button', { name: 'Remove credit' }).click();
+		await expect(page.getByText('No cast yet.')).toBeVisible();
+		// The removed row's button is gone, so focus goes to the section's own button.
+		await expect(page.getByRole('button', { name: 'Add credit' })).toBeFocused();
+
+		await page.getByRole('button', { name: `Remove ${editedPerson} (Director)` }).click();
+		await page.getByRole('dialog').getByRole('button', { name: 'Remove credit' }).click();
+		await expect(page.getByText('No creators yet.')).toBeVisible();
+
+		// The movie was only needed for the credits.
+		await page.getByRole('button', { name: 'Delete', exact: true }).click();
+		await page.getByRole('dialog').getByRole('button', { name: 'Delete movie' }).click();
+		await expect(page.getByText(`“${creditedTitle}” was deleted.`)).toBeVisible();
+
+		await page.goto('/people');
+		await page.getByRole('link', { name: new RegExp(editedPerson) }).click();
+		await expect(page.getByText('No credits yet.')).toBeVisible();
+	});
+
 	await test.step('deleting the person asks first, then removes them from the list', async () => {
 		await page.getByRole('button', { name: 'Delete', exact: true }).click();
 		await page
@@ -250,6 +404,19 @@ test('create, edit and delete a movie with artwork, and a person, with failures 
 		await expect(page.getByRole('link', { name: new RegExp(person) })).toHaveCount(0);
 	});
 });
+
+/** Removes the movie's first credit in `list` through the API, as another browser tab or user would. */
+async function removeCreditElsewhere(page: Page, list: 'cast' | 'creators') {
+	const movieId = new URL(page.url()).pathname.split('/').pop();
+	const credits = await page.request.post('/graphql', {
+		data: { query: `{ movie(id: "${movieId}") { ${list} { id } } }` }
+	});
+	const id = (await credits.json()).data.movie[list][0].id;
+	const removed = await page.request.post('/graphql', {
+		data: { query: `mutation { removeCredit(id: "${id}") }` }
+	});
+	expect((await removed.json()).data.removeCredit).toBe(id);
+}
 
 /** Changes the movie's title through the API, as another browser tab or user would. */
 async function renameElsewhere(page: Page, id: string, newTitle: string) {

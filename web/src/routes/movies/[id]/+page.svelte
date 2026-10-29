@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import ArtworkUpload from '#lib/components/ArtworkUpload.svelte';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
+	import MovieCredits from '#lib/components/MovieCredits.svelte';
 	import { formatRuntime, yearOf } from '#lib/format.ts';
 	import { describeError, GraphQlRequestError, request } from '#lib/graphql/client.ts';
 	import type { MovieDetailFieldsFragment } from '#lib/graphql/generated/graphql.ts';
@@ -188,11 +189,13 @@
 		</div>
 	</article>
 
+	<MovieCredits movieId={movie.id} />
+
 	<ConfirmDialog
 		open={confirming !== null}
 		title={confirming === 'delete' ? `Delete “${movie.title}”?` : 'Remove the artwork?'}
 		message={confirming === 'delete'
-			? 'The movie and its artwork will be permanently deleted.'
+			? 'The movie, its artwork and its credits will be permanently deleted. The people stay in the catalog.'
 			: 'The image will be deleted. You can upload a new one afterwards.'}
 		confirmLabel={confirming === 'delete' ? 'Delete movie' : 'Remove artwork'}
 		{busy}
