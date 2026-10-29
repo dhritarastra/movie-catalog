@@ -69,7 +69,8 @@ private fun PersonFields.toInput() =
     )
 
 // Receivers are named explicitly: inside the builder's apply, a bare `bio` would be the builder's own field.
-private fun Person.toProto(): PersonProto =
+/** Also used by SearchGrpcService, so a person looks the same in every response. */
+internal fun Person.toProto(): PersonProto =
     PersonProto.newBuilder()
         .setId(requireNotNull(id) { "a saved person has an id" }.toString())
         .setName(name)

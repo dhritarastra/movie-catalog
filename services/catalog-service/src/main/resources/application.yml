@@ -26,3 +26,6 @@ catalog:
   paging:
     # The largest page a caller may ask for; larger requests are rejected, not cut down.
     max-limit: 100
+  search:
+    # The most results one search may ask for; more is rejected, not cut down.
+    max-limit: 50
