@@ -80,8 +80,11 @@ class CatalogClient(
                 .build(),
         )
 
-    fun listPeople(offset: Int, limit: Int): ListPeopleResponse =
-        people.withDeadline().listPeople(ListPeopleRequest.newBuilder().setPage(page(offset, limit)).build())
+    /** A blank [nameContains] lists everyone. */
+    fun listPeople(offset: Int, limit: Int, nameContains: String = ""): ListPeopleResponse =
+        people.withDeadline().listPeople(
+            ListPeopleRequest.newBuilder().setPage(page(offset, limit)).setNameContains(nameContains).build(),
+        )
 
     fun getPerson(id: String): Person = people.withDeadline().getPerson(GetPersonRequest.newBuilder().setId(id).build())
 

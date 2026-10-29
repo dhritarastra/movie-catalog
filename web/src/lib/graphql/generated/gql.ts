@@ -32,7 +32,7 @@ type Documents = {
     "\n\tmutation DeletePerson($id: ID!, $version: Int!) {\n\t\tdeletePerson(id: $id, version: $version)\n\t}\n": typeof types.DeletePersonDocument,
     "\n\tfragment CreditFields on Credit {\n\t\tid\n\t\ttype\n\t\tcharacterName\n\t\tbillingOrder\n\t\tperson {\n\t\t\tid\n\t\t\tname\n\t\t}\n\t}\n": typeof types.CreditFieldsFragmentDoc,
     "\n\tquery MovieCredits($id: ID!) {\n\t\tmovie(id: $id) {\n\t\t\tid\n\t\t\tcast {\n\t\t\t\t...CreditFields\n\t\t\t}\n\t\t\tcreators {\n\t\t\t\t...CreditFields\n\t\t\t}\n\t\t}\n\t}\n": typeof types.MovieCreditsDocument,
-    "\n\tquery PersonPicker {\n\t\tpeople(page: { limit: 100 }) {\n\t\t\ttotalCount\n\t\t\titems {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t}\n\t\t}\n\t}\n": typeof types.PersonPickerDocument,
+    "\n\tquery PersonPicker($nameContains: String) {\n\t\tpeople(nameContains: $nameContains) {\n\t\t\ttotalCount\n\t\t\titems {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t}\n\t\t}\n\t}\n": typeof types.PersonPickerDocument,
     "\n\tmutation AddCredit($input: AddCreditInput!) {\n\t\taddCredit(input: $input) {\n\t\t\t...CreditFields\n\t\t}\n\t}\n": typeof types.AddCreditDocument,
     "\n\tmutation UpdateCredit($id: ID!, $input: UpdateCreditInput!) {\n\t\tupdateCredit(id: $id, input: $input) {\n\t\t\t...CreditFields\n\t\t}\n\t}\n": typeof types.UpdateCreditDocument,
     "\n\tmutation RemoveCredit($id: ID!) {\n\t\tremoveCredit(id: $id)\n\t}\n": typeof types.RemoveCreditDocument,
@@ -55,7 +55,7 @@ const documents: Documents = {
     "\n\tmutation DeletePerson($id: ID!, $version: Int!) {\n\t\tdeletePerson(id: $id, version: $version)\n\t}\n": types.DeletePersonDocument,
     "\n\tfragment CreditFields on Credit {\n\t\tid\n\t\ttype\n\t\tcharacterName\n\t\tbillingOrder\n\t\tperson {\n\t\t\tid\n\t\t\tname\n\t\t}\n\t}\n": types.CreditFieldsFragmentDoc,
     "\n\tquery MovieCredits($id: ID!) {\n\t\tmovie(id: $id) {\n\t\t\tid\n\t\t\tcast {\n\t\t\t\t...CreditFields\n\t\t\t}\n\t\t\tcreators {\n\t\t\t\t...CreditFields\n\t\t\t}\n\t\t}\n\t}\n": types.MovieCreditsDocument,
-    "\n\tquery PersonPicker {\n\t\tpeople(page: { limit: 100 }) {\n\t\t\ttotalCount\n\t\t\titems {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t}\n\t\t}\n\t}\n": types.PersonPickerDocument,
+    "\n\tquery PersonPicker($nameContains: String) {\n\t\tpeople(nameContains: $nameContains) {\n\t\t\ttotalCount\n\t\t\titems {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t}\n\t\t}\n\t}\n": types.PersonPickerDocument,
     "\n\tmutation AddCredit($input: AddCreditInput!) {\n\t\taddCredit(input: $input) {\n\t\t\t...CreditFields\n\t\t}\n\t}\n": types.AddCreditDocument,
     "\n\tmutation UpdateCredit($id: ID!, $input: UpdateCreditInput!) {\n\t\tupdateCredit(id: $id, input: $input) {\n\t\t\t...CreditFields\n\t\t}\n\t}\n": types.UpdateCreditDocument,
     "\n\tmutation RemoveCredit($id: ID!) {\n\t\tremoveCredit(id: $id)\n\t}\n": types.RemoveCreditDocument,
@@ -132,7 +132,7 @@ export function graphql(source: "\n\tquery MovieCredits($id: ID!) {\n\t\tmovie(i
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n\tquery PersonPicker {\n\t\tpeople(page: { limit: 100 }) {\n\t\t\ttotalCount\n\t\t\titems {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t}\n\t\t}\n\t}\n"): typeof import('./graphql').PersonPickerDocument;
+export function graphql(source: "\n\tquery PersonPicker($nameContains: String) {\n\t\tpeople(nameContains: $nameContains) {\n\t\t\ttotalCount\n\t\t\titems {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t}\n\t\t}\n\t}\n"): typeof import('./graphql').PersonPickerDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

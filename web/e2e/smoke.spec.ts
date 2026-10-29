@@ -247,10 +247,14 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByText('No cast yet.')).toBeVisible();
 		await expect(page.getByText('No creators yet.')).toBeVisible();
 
-		await page.getByRole('button', { name: 'Add credit' }).click();
-		// Opening the form moves focus into it.
-		await expect(page.getByLabel('Person')).toBeFocused();
-		await page.getByLabel('Person').selectOption({ label: editedPerson });
+		// 100 people who sort before the smoke person fill the first page of any list of people.
+		const fillers = await createPeople(page, 100, `Aaa Filler ${stamp}`);
+		try {
+			await findBeyondTheFirstPage(page, editedPerson);
+		} finally {
+			// Only needed to fill the first page; removed even if a check above fails.
+			await deletePeople(page, fillers);
+		}
 		await page.getByLabel('Role').selectOption('CAST');
 		await page.getByLabel('Character').fill('  Louise Banks ');
 		await page.getByLabel('Billing order').fill('1');
@@ -261,7 +265,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(cast).toContainText('as Louise Banks');
 
 		await page.getByRole('button', { name: 'Add credit' }).click();
-		await page.getByLabel('Person').selectOption({ label: editedPerson });
+		await choosePerson(page, editedPerson);
 		await page.getByLabel('Role').selectOption('DIRECTOR');
 		// Only cast credits have a character, so the field goes away.
 		await expect(page.getByLabel('Character')).toHaveCount(0);
@@ -292,7 +296,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 
 	await test.step('the same role twice is refused with an explanation', async () => {
 		await page.getByRole('button', { name: 'Add credit' }).click();
-		await page.getByLabel('Person').selectOption({ label: editedPerson });
+		await choosePerson(page, editedPerson);
 		await page.getByLabel('Role').selectOption('DIRECTOR');
 		await page.getByRole('button', { name: 'Add credit' }).click();
 		await expect(page.getByRole('alert')).toContainText(
@@ -302,11 +306,93 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByRole('list', { name: 'Creators' }).getByRole('listitem')).toHaveCount(1);
 	});
 
+	await test.step('a failed search can be retried, and a slower older search never replaces a newer one', async () => {
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		const search = page.getByRole('searchbox', { name: 'Person', exact: true });
+
+		// The first search is held, as on a slow connection; a newer one is answered meanwhile.
+		let releaseStale!: () => void;
+		const stale = new Promise<void>((resolve) => (releaseStale = resolve));
+		let markAnswered!: () => void;
+		const staleAnswered = new Promise<void>((resolve) => (markAnswered = resolve));
+		await page.route('**/graphql', async (route) => {
+			if (operationName(route.request()) !== 'PersonPicker') return route.fallback();
+			if (route.request().postDataJSON()?.variables?.nameContains !== 'Nobody stale')
+				return route.fallback();
+			await stale;
+			try {
+				await route.fulfill({
+					json: {
+						data: {
+							people: { totalCount: 1, items: [{ id: crypto.randomUUID(), name: 'Stale Answer' }] }
+						}
+					}
+				});
+			} catch {
+				// The page has abandoned this request, so it may no longer accept an answer.
+			} finally {
+				markAnswered();
+			}
+		});
+		const held = page.waitForRequest(
+			(request) =>
+				operationName(request) === 'PersonPicker' &&
+				request.postDataJSON()?.variables?.nameContains === 'Nobody stale'
+		);
+		await search.fill('Nobody stale');
+		const heldRequest = await held;
+		// Wait for the newer search's own answer: the person may already be listed from before.
+		const newerText = editedPerson.slice(0, -3);
+		const newer = page.waitForResponse(
+			(response) =>
+				operationName(response.request()) === 'PersonPicker' &&
+				response.request().postDataJSON()?.variables?.nameContains === newerText
+		);
+		await search.fill(newerText);
+		await newer;
+		await expect(page.getByRole('radio', { name: editedPerson })).toBeVisible();
+		releaseStale();
+		await staleAnswered;
+		// Once the browser is done with the old request (answered, or abandoned by the page) and
+		// has drawn two frames, an answer it accepted would be on screen.
+		await heldRequest.response();
+		await page.evaluate(
+			() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+		);
+		await expect(page.getByRole('radio', { name: 'Stale Answer' })).toHaveCount(0);
+		await expect(page.getByRole('radio', { name: editedPerson })).toBeVisible();
+		await page.unrouteAll({ behavior: 'wait' });
+
+		// A failed search explains itself and can be retried; nobody matching is said plainly.
+		let failed = false;
+		await page.route('**/graphql', async (route) => {
+			if (failed || operationName(route.request()) !== 'PersonPicker') return route.fallback();
+			failed = true;
+			await route.fulfill({
+				json: {
+					data: null,
+					errors: [{ message: 'Search is down', extensions: { code: 'SERVICE_UNAVAILABLE' } }]
+				}
+			});
+		});
+		await search.fill('Nobody matches this');
+		await expect(page.getByRole('alert')).toBeVisible();
+		await page.unrouteAll({ behavior: 'wait' });
+		await page.getByRole('button', { name: 'Retry' }).click();
+		await expect(page.locator('#personId-status')).toContainText(
+			"No one's name contains “Nobody matches this”."
+		);
+
+		await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+	});
+
 	await test.step('editing a credit replaces its character and billing order', async () => {
 		await page.getByRole('button', { name: `Edit ${editedPerson}'s credit (Cast)` }).click();
 		// The person cannot change, so focus starts on the role.
 		await expect(page.getByLabel('Role')).toBeFocused();
-		await expect(page.getByLabel('Person')).toHaveValue(editedPerson);
+		await expect(page.getByRole('textbox', { name: 'Person', exact: true })).toHaveValue(
+			editedPerson
+		);
 		await expect(page.getByLabel('Character')).toHaveValue('Louise Banks');
 		await page.getByLabel('Character').fill('Dr. Louise Banks');
 		// An empty or too large billing order is explained before anything is sent.
@@ -336,7 +422,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 
 		// Put the director credit back for the steps that follow.
 		await page.getByRole('button', { name: 'Add credit' }).click();
-		await page.getByLabel('Person').selectOption({ label: editedPerson });
+		await choosePerson(page, editedPerson);
 		await page.getByLabel('Role').selectOption('DIRECTOR');
 		await page.getByRole('button', { name: 'Add credit' }).click();
 		await expect(page.getByRole('list', { name: 'Creators' })).toContainText('Director');
@@ -404,6 +490,70 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByRole('link', { name: new RegExp(person) })).toHaveCount(0);
 	});
 });
+
+/**
+ * Opens the credit form while 100 other people sort first, checks that the first page of people
+ * does not reach `name`, then finds and chooses them by typing part of the name.
+ */
+async function findBeyondTheFirstPage(page: Page, name: string) {
+	await page.getByRole('button', { name: 'Add credit' }).click();
+	// Opening the form moves focus into it.
+	const search = page.getByRole('searchbox', { name: 'Person', exact: true });
+	await expect(search).toBeFocused();
+	await expect(search).toHaveAttribute('maxlength', '200');
+	await expect(page.getByRole('radio').first()).toBeVisible();
+	// The result count is announced with the rest of the search status.
+	await expect(page.locator('#personId-status')).toContainText(/Showing 20 of \d+ people/);
+	const matches = page.getByRole('radiogroup', { name: 'Person matching people' });
+	await expect(matches).toHaveAttribute('aria-required', 'true');
+	await expect(page.getByRole('radio', { name })).toHaveCount(0);
+	await choosePerson(page, name);
+
+	// A trailing space does not change the search, so nothing is sent again. Showing that
+	// nothing is sent takes a wait longer than the form's 250 ms pause before searching.
+	let searches = 0;
+	const count = (request: Request) => {
+		if (operationName(request) === 'PersonPicker') searches++;
+	};
+	page.on('request', count);
+	await search.fill(`${name.slice(0, -3)} `);
+	await page.waitForTimeout(600);
+	page.off('request', count);
+	expect(searches).toBe(0);
+}
+
+/** Finds a person in the credit form by typing part of their name, then chooses them. */
+async function choosePerson(page: Page, name: string) {
+	await page.getByRole('searchbox', { name: 'Person', exact: true }).fill(name.slice(0, -3));
+	await page.getByRole('radio', { name, exact: true }).check();
+}
+
+/** Adds `count` people named "<prefix> 001", "<prefix> 002", ... through the API; returns their IDs. */
+async function createPeople(page: Page, count: number, prefix: string): Promise<string[]> {
+	const ids: string[] = [];
+	for (let i = 1; i <= count; i++) {
+		const response = await page.request.post('/graphql', {
+			data: {
+				query: 'mutation($name: String!) { createPerson(input: { name: $name }) { id } }',
+				variables: { name: `${prefix} ${String(i).padStart(3, '0')}` }
+			}
+		});
+		const body = await response.json();
+		expect(body.errors, `creating ${prefix} ${i}`).toBeUndefined();
+		ids.push(body.data.createPerson.id);
+	}
+	return ids;
+}
+
+/** Deletes people created by createPeople (each still at version 1). */
+async function deletePeople(page: Page, ids: string[]) {
+	for (const id of ids) {
+		const response = await page.request.post('/graphql', {
+			data: { query: `mutation { deletePerson(id: "${id}", version: 1) }` }
+		});
+		expect((await response.json()).data.deletePerson).toBe(id);
+	}
+}
 
 /** Removes the movie's first credit in `list` through the API, as another browser tab or user would. */
 async function removeCreditElsewhere(page: Page, list: 'cast' | 'creators') {

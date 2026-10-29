@@ -36,7 +36,7 @@ class PersonGrpcService(private val people: PersonService) : PersonServiceGrpc.P
     }
 
     override fun listPeople(request: ListPeopleRequest, responseObserver: StreamObserver<ListPeopleResponse>) {
-        val page = people.list(request.page.offset, request.page.limit)
+        val page = people.list(request.page.offset, request.page.limit, request.nameContains)
         responseObserver.complete(
             ListPeopleResponse.newBuilder()
                 .addAllPeople(page.content.map { it.toProto() })

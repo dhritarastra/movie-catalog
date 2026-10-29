@@ -16,10 +16,10 @@ import org.springframework.stereotype.Controller
 @Controller
 class PersonController(private val catalog: CatalogClient) {
     @QueryMapping
-    fun people(@Argument page: PageInput?): PersonPageView {
+    fun people(@Argument page: PageInput?, @Argument nameContains: String?): PersonPageView {
         val offset = page.offsetOrDefault()
         val limit = page.limitOrDefault()
-        val response = catalog.listPeople(offset, limit)
+        val response = catalog.listPeople(offset, limit, nameContains.orEmpty())
         return PersonPageView(response.peopleList.map(PersonView::of), response.totalCount, offset, limit)
     }
 

@@ -1,6 +1,8 @@
 package com.moviecatalog.catalog.person
 
 import com.moviecatalog.catalog.common.FailedPreconditionException
+import com.moviecatalog.catalog.common.FieldViolation
+import com.moviecatalog.catalog.common.InvalidArgumentException
 import com.moviecatalog.catalog.common.NotFoundException
 import com.moviecatalog.catalog.common.Paging
 import com.moviecatalog.catalog.common.VersionConflictException
@@ -37,8 +39,17 @@ class PersonService(
     /**
      * Alphabetical through the name column's ICU collation (case and accents break letter ties)
      * (V2__create_person.sql). The id tie-breaker keeps people with the same name in a stable order.
+     * A non-blank [nameContains] keeps only people whose name contains it, ignoring case.
      */
-    fun list(offset: Int, limit: Int): Page<Person> = repository.findAll(paging.of(offset, limit, BY_NAME))
+    fun list(offset: Int, limit: Int, nameContains: String = ""): Page<Person> {
+        val name = nameContains.trim()
+        // A filter longer than the longest possible name could never match.
+        if (name.length > PersonInput.NAME_MAX) {
+            throw InvalidArgumentException(listOf(FieldViolation("name_contains", "must be at most ${PersonInput.NAME_MAX} characters")))
+        }
+        val page = paging.of(offset, limit, BY_NAME)
+        return if (name.isEmpty()) repository.findAll(page) else repository.findAllByNameContainingIgnoreCase(name, page)
+    }
 
     @Transactional
     fun update(id: UUID, expectedVersion: Int, input: PersonInput): Person {

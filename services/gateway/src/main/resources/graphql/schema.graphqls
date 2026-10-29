@@ -7,7 +7,11 @@ scalar Upload
 type Query {
   movies(page: PageInput): MoviePage!
   movie(id: ID!): Movie
-  people(page: PageInput): PersonPage!
+  people(
+    page: PageInput
+    "Only people whose name contains this text, ignoring case. Omitted or blank lists everyone."
+    nameContains: String
+  ): PersonPage!
   person(id: ID!): Person
   search(query: String!, limit: Int = 10): [SearchResult!]!
 }

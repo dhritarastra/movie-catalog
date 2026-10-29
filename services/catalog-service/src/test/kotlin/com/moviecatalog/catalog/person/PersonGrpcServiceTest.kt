@@ -93,6 +93,28 @@ class PersonGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
     }
 
     @Test
+    fun `filters by part of the name, ignoring case, and counts only the matches`() {
+        listOf("Amy Adams", "Jeremy Renner", "amy poehler").forEach { create(PersonFields.newBuilder().setName(it)) }
+
+        val found = people.listPeople(
+            ListPeopleRequest.newBuilder().setPage(PageRequest.newBuilder().setOffset(0).setLimit(1)).setNameContains("AMY").build(),
+        )
+
+        assertThat(found.peopleList.map { it.name }).containsExactly("Amy Adams")
+        assertThat(found.totalCount).isEqualTo(2)
+        val whitespace = people.listPeople(
+            ListPeopleRequest.newBuilder().setPage(PageRequest.newBuilder().setLimit(10)).setNameContains(" \t ").build(),
+        )
+        assertThat(whitespace.totalCount).describedAs("a whitespace-only filter lists everyone").isEqualTo(3)
+        val tooLong = assertThrows<StatusRuntimeException> {
+            people.listPeople(
+                ListPeopleRequest.newBuilder().setPage(PageRequest.newBuilder().setLimit(10)).setNameContains("x".repeat(201)).build(),
+            )
+        }
+        assertThat(badRequestFields(tooLong)).containsExactly("name_contains")
+    }
+
+    @Test
     fun `rejects out-of-range paging, including an omitted limit`() {
         listOf(0 to 0, 0 to 101, -1 to 10).forEach { (offset, limit) ->
             val error = assertThrows<StatusRuntimeException> { list(offset, limit) }
