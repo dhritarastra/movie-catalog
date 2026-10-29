@@ -99,6 +99,20 @@ services:
       timeout: 3s
       retries: 10
 
+  # Demo data, only when asked: `docker compose run --rm seed` on an empty catalog.
+  seed:
+    image: node:22-alpine
+    profiles: ["seed"]
+    # Node runs the TypeScript directly, and the script uses only Node's own modules.
+    command: ["node", "/seed/run.ts"]
+    environment:
+      SEED_URL: http://web/graphql
+    volumes:
+      - ./web/seed:/seed:ro
+    depends_on:
+      web:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   media-data:
