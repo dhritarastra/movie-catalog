@@ -5,8 +5,8 @@ Kotlin Spring Boot services: the frontend talks to the backend over GraphQL, and
 services talk to each other over gRPC.
 
 > **Status: in progress.** You can list, create, view, edit and delete movies and people, upload,
-> replace and remove movie artwork, and credit people on movies as cast or creators, through the
-> whole stack. Search is next.
+> replace and remove movie artwork, credit people on movies as cast or creators, and search
+> across movies and people, through the whole stack.
 
 ## Architecture
 
@@ -138,6 +138,8 @@ and the real services:
   credit removed elsewhere while being edited is explained
 - see the person's credits on their page, and have their deletion refused until the credits are
   removed
+- search from the header, see the movie and the person labelled with their roles, open a result
+  and come Back to the same results, and check that a typed `%` matches only itself
 
 The successful in-flight steps hold real GraphQL responses (the server has already saved).
 The late-failure steps inject delayed field-error and timeout responses. Neither depends on
@@ -231,6 +233,25 @@ field for a whole page, not one call per movie or person.
 
 `people(nameContains: "amy")` lists only people whose name contains the text, ignoring case;
 the credit form uses it to find anyone, however long the list of people.
+
+Search finds movies by title and people by name in one ranked list: the whole title or name
+first, then ones that start with the query, then ones that contain it, then alphabetically.
+Case is ignored for every letter (`ZOË` finds `Zoë`), accents are not, and `%`, `_` and `\`
+match themselves. Queries are trimmed and up to 200 characters; `limit` defaults to 10 and may
+be up to `catalog.search.max-limit` (50).
+
+```graphql
+query {
+  search(query: "arrival") {
+    __typename
+    ... on Movie { id title }
+    ... on Person { id name credits { type } }
+  }
+}
+```
+
+The web app's `/search?q=` page searches as you type, and the header has a search box on every
+other page.
 
 Artwork is uploaded with the
 [GraphQL multipart request spec](https://github.com/jaydenseric/graphql-multipart-request-spec):
