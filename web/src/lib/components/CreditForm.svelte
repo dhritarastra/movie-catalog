@@ -9,7 +9,7 @@
 		type CreditFormValues
 	} from '#lib/credits.ts';
 	import { saveFailure, type SaveFailure } from '#lib/forms.ts';
-	import { describeError, request } from '#lib/graphql/client.ts';
+	import { describeError, describeReadError, request } from '#lib/graphql/client.ts';
 	import { PersonPickerQuery } from '#lib/graphql/operations.ts';
 	import { trackVisit } from '#lib/navigation.ts';
 	import { showToast } from '#lib/toasts.svelte.ts';
@@ -80,7 +80,7 @@
 					})
 					.catch((error) => {
 						if (error?.name !== 'AbortError')
-							matches = { status: 'error', message: describeError(error) };
+							matches = { status: 'error', message: describeReadError(error) };
 					})
 					.finally(() => {
 						if (!controller.signal.aborted) searching = false;

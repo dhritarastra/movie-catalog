@@ -114,3 +114,14 @@ export function describeError(error: unknown): string {
 	}
 	return 'Something went wrong. Please try again.';
 }
+
+/**
+ * Like describeError, for a failed read such as a search: nothing was being saved, so a timeout
+ * asks the user to try again rather than to check whether a change was saved.
+ */
+export function describeReadError(error: unknown): string {
+	if (error instanceof GraphQlRequestError && error.code === 'SERVICE_UNAVAILABLE') {
+		return 'The server did not respond in time. Try again.';
+	}
+	return describeError(error);
+}

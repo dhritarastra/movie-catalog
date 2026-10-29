@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { describeError, GraphQlRequestError, request } from './client';
+import { describeError, describeReadError, GraphQlRequestError, request } from './client';
 import { MoviesQuery } from './operations';
 
 function respond(status: number, body: string) {
@@ -89,5 +89,21 @@ describe('describeError', () => {
 			'Movie not found'
 		);
 		expect(describeError(new Error('boom'))).toMatch(/Something went wrong/);
+	});
+});
+
+describe('describeReadError', () => {
+	it('asks to try again after a timeout, because a read saves nothing', () => {
+		const timeout = new GraphQlRequestError('slow', 'SERVICE_UNAVAILABLE');
+
+		expect(describeReadError(timeout)).toBe('The server did not respond in time. Try again.');
+		expect(describeError(timeout)).toMatch(/whether your change was saved/);
+	});
+
+	it('describes any other failure as describeError does', () => {
+		const invalid = new GraphQlRequestError('query: is required', 'BAD_REQUEST');
+
+		expect(describeReadError(invalid)).toBe(describeError(invalid));
+		expect(describeReadError(new Error('boom'))).toBe(describeError(new Error('boom')));
 	});
 });
