@@ -457,6 +457,109 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByRole('list', { name: 'Results' })).toContainText(editedPerson);
 	});
 
+	await test.step('each search is sent once, typing is never lost, a slower older search never wins, and a failed one can be retried', async () => {
+		const box = page.getByRole('searchbox', { name: 'Search movies and people' });
+		const status = page.locator('#search-status');
+		const results = page.getByRole('list', { name: 'Results' });
+
+		// One request per search: keeping the address in step must not search again.
+		const sent: string[] = [];
+		const record = (request: Request) => {
+			if (operationName(request) === 'Search') sent.push(request.postDataJSON()?.variables?.query);
+		};
+		page.on('request', record);
+		const once = editedPerson.slice(0, -3);
+		// The earlier results may already list the person, so wait for this search's own answer
+		// and its address; a repeated request would have been sent before both.
+		const answered = page.waitForResponse(
+			(response) =>
+				operationName(response.request()) === 'Search' &&
+				response.request().postDataJSON()?.variables?.query === once
+		);
+		await box.fill(once);
+		await answered;
+		await expect(page).toHaveURL(`/search?q=${encodeURIComponent(once)}`);
+		await expect(results).toContainText(editedPerson);
+		page.off('request', record);
+		expect(sent).toEqual([once]);
+
+		// Typing at a steady pace, about the length of the pause before searching, keeps every key.
+		await box.fill('');
+		await box.pressSequentially(`Smoke ${stamp}`, { delay: 250 });
+		await expect(box).toHaveValue(`Smoke ${stamp}`);
+
+		// An older search is held, as on a slow connection; a newer one is answered meanwhile.
+		let releaseStale!: () => void;
+		const stale = new Promise<void>((resolve) => (releaseStale = resolve));
+		let markAnswered!: () => void;
+		const staleAnswered = new Promise<void>((resolve) => (markAnswered = resolve));
+		await page.route('**/graphql', async (route) => {
+			if (operationName(route.request()) !== 'Search') return route.fallback();
+			if (route.request().postDataJSON()?.variables?.query !== 'Nobody stale')
+				return route.fallback();
+			await stale;
+			try {
+				await route.fulfill({
+					json: {
+						data: {
+							search: [
+								{ __typename: 'Person', id: crypto.randomUUID(), name: 'Stale Answer', credits: [] }
+							]
+						}
+					}
+				});
+			} catch {
+				// The page has abandoned this request, so it may no longer accept an answer.
+			} finally {
+				markAnswered();
+			}
+		});
+		const held = page.waitForRequest(
+			(request) =>
+				operationName(request) === 'Search' &&
+				request.postDataJSON()?.variables?.query === 'Nobody stale'
+		);
+		await box.fill('Nobody stale');
+		const heldRequest = await held;
+		const newer = page.waitForResponse(
+			(response) =>
+				operationName(response.request()) === 'Search' &&
+				response.request().postDataJSON()?.variables?.query === once
+		);
+		await box.fill(once);
+		await newer;
+		releaseStale();
+		await staleAnswered;
+		// Once the browser is done with the old request and has drawn two frames, an answer it
+		// accepted would be on screen.
+		await heldRequest.response();
+		await page.evaluate(
+			() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+		);
+		await expect(results.getByRole('link', { name: 'Stale Answer' })).toHaveCount(0);
+		await expect(results).toContainText(editedPerson);
+		await page.unrouteAll({ behavior: 'wait' });
+
+		// A failed search explains itself and can be retried.
+		let failed = false;
+		await page.route('**/graphql', async (route) => {
+			if (failed || operationName(route.request()) !== 'Search') return route.fallback();
+			failed = true;
+			await route.fulfill({
+				json: {
+					data: null,
+					errors: [{ message: 'Search is down', extensions: { code: 'SERVICE_UNAVAILABLE' } }]
+				}
+			});
+		});
+		await box.fill('Nobody fails');
+		// Nothing was being saved, so the message asks to try again.
+		await expect(page.getByRole('alert')).toContainText('did not respond in time. Try again.');
+		await page.unrouteAll({ behavior: 'wait' });
+		await page.getByRole('button', { name: 'Retry' }).click();
+		await expect(status).toContainText('Nothing matches “Nobody fails”.');
+	});
+
 	await test.step('a typed % is matched literally, and a search with no match says so', async () => {
 		const box = page.getByRole('searchbox', { name: 'Search movies and people' });
 		const status = page.locator('#search-status');

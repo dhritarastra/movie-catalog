@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { ResolvedPathname } from '$app/types';
 	import { yearOf } from '#lib/format.ts';
-	import { describeError, request } from '#lib/graphql/client.ts';
+	import { describeReadError, request } from '#lib/graphql/client.ts';
 	import type { SearchQuery as SearchResult } from '#lib/graphql/generated/graphql.ts';
 	import { SearchQuery } from '#lib/graphql/operations.ts';
 	import { roleSummary, SEARCH_LIMIT, searchQueryString } from '#lib/search.ts';
@@ -28,13 +28,11 @@
 
 	onMount(() => input?.focus());
 
-	// The address changes without this box when a header search is sent from here, or on
-	// Back and Forward; the box follows it.
-	$effect(() => {
-		const fromUrl = urlQuery;
-		untrack(() => {
-			if (fromUrl.trim() !== query.trim()) query = fromUrl;
-		});
+	// Back and Forward change the address without this box, so the box follows them. It does
+	// not follow the page's own address updates (showInAddress): one can land after the next
+	// key has been typed, and following it would put back the text from before that key.
+	afterNavigate(({ type, to }) => {
+		if (type === 'popstate') query = to?.url.searchParams.get('q') ?? '';
 	});
 
 	// Searches after a pause in typing. The cleanup cancels both the wait and the request it
@@ -42,10 +40,13 @@
 	$effect(() => {
 		const text = searchText;
 		void attempt;
+		// Read without tracking: the address is written here, and reacting to that write would
+		// search again and cancel the request just sent.
+		const fromAddress = untrack(() => urlQuery.trim());
 		if (!text) {
 			view = { status: 'idle' };
 			searching = false;
-			showInAddress('');
+			untrack(() => showInAddress(''));
 			return;
 		}
 		const controller = new AbortController();
@@ -57,14 +58,14 @@
 					.then((data) => (view = { status: 'ready', text, hits: data.search }))
 					.catch((error) => {
 						if (error?.name !== 'AbortError')
-							view = { status: 'error', message: describeError(error) };
+							view = { status: 'error', message: describeReadError(error) };
 					})
 					.finally(() => {
 						if (!controller.signal.aborted) searching = false;
 					});
 			},
 			// A search arriving in the address (a link, Back, the header box) runs at once.
-			text === urlQuery.trim() ? 0 : SEARCH_DELAY_MS
+			text === fromAddress ? 0 : SEARCH_DELAY_MS
 		);
 		return () => {
 			clearTimeout(timer);
