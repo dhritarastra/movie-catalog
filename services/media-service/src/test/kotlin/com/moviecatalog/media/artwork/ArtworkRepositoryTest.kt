@@ -11,8 +11,14 @@ import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager
 import org.springframework.context.annotation.Import
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.simple.JdbcClient
-import java.sql.SQLException
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
 import javax.sql.DataSource
 
 /** The entity mapping against the real schema: Flyway's migration, the content-type column and constraints. */
@@ -24,6 +30,7 @@ class ArtworkRepositoryTest(
     @Autowired private val jdbc: JdbcClient,
     @Autowired private val dataSource: DataSource,
     @Autowired private val entityManagerFactory: EntityManagerFactory,
+    @Autowired private val transactions: PlatformTransactionManager,
 ) {
     @Test
     fun `Hibernate checks the Artwork mapping against the Flyway schema at startup`() {
@@ -61,25 +68,59 @@ class ArtworkRepositoryTest(
         assertThat(repository.findById(id)).isEmpty()
     }
 
+    /**
+     * Two requests deleting the same artwork at once. This test runs outside the test transaction
+     * (NOT_SUPPORTED), so each delete commits for real; it creates its own row and removes it at
+     * the end, because nothing is rolled back for it.
+     */
     @Test
-    fun `removing deletes at once, so a concurrent delete waits for it instead of failing at commit`() {
-        val id = UUID.randomUUID()
-        // Committed from another connection, so that connection can see the row below.
-        dataSource.connection.use {
-            it.prepareStatement("INSERT INTO artwork (id, content_type, size_bytes, width, height, sha256) VALUES (?, 'image/png', 1, 1, 1, '00')")
-                .apply { setObject(1, id) }.executeUpdate()
-        }
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `a second delete running at the same time waits for the first, then reports that nothing existed`() {
+        val id = repository.saveAndFlush(Artwork(UUID.randomUUID(), ImageFormat.PNG, 1, 1, 1, "00")).id
+        val other = Executors.newSingleThreadExecutor()
+        try {
+            val transaction = TransactionTemplate(transactions)
+            var second: Future<Int>? = null
+            val first = transaction.execute {
+                val removed = repository.removeById(id)
+                // The second delete starts while this transaction still holds the row.
+                second = other.submit<Int> { transaction.execute { repository.removeById(id) } }
+                awaitBlockedDelete()
+                removed
+            }
 
-        assertThat(repository.removeById(id)).isEqualTo(1)
-
-        // A second connection, as another request would use: the row is already locked by this
-        // transaction's DELETE, so another delete would wait and then find nothing.
-        val locked = assertThrows<SQLException> {
+            assertThat(first).isEqualTo(1)
+            assertThat(second!!.get(10, TimeUnit.SECONDS)).isZero()
+            assertThat(repository.existsById(id)).isFalse()
+        } finally {
+            // The worker must have let go of its connection before the cleanup below.
+            other.shutdownNow()
+            other.awaitTermination(10, TimeUnit.SECONDS)
             dataSource.connection.use {
-                it.prepareStatement("SELECT 1 FROM artwork WHERE id = ? FOR UPDATE NOWAIT").apply { setObject(1, id) }.executeQuery()
+                it.prepareStatement("DELETE FROM artwork WHERE id = ?").apply { setObject(1, id) }.executeUpdate()
             }
         }
-        assertThat(locked.sqlState).isEqualTo("55P03") // lock_not_available
+    }
+
+    /**
+     * Waits until Postgres reports a delete from artwork in this test's database waiting for
+     * another transaction to finish, which is how a delete waits for a row another one holds.
+     */
+    private fun awaitBlockedDelete() {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (System.nanoTime() < deadline) {
+            val waiting = dataSource.connection.use {
+                val rows = it.prepareStatement(
+                    "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() " +
+                        "AND wait_event_type = 'Lock' AND wait_event = 'transactionid' AND query ILIKE 'delete from artwork%'",
+                ).executeQuery()
+                rows.next()
+                rows.getInt(1)
+            }
+            if (waiting > 0) return
+            Thread.sleep(50)
+        }
+        throw AssertionError("The second delete never waited for the first")
     }
 
     @Test
