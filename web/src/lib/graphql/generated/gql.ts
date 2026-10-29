@@ -36,6 +36,7 @@ type Documents = {
     "\n\tmutation AddCredit($input: AddCreditInput!) {\n\t\taddCredit(input: $input) {\n\t\t\t...CreditFields\n\t\t}\n\t}\n": typeof types.AddCreditDocument,
     "\n\tmutation UpdateCredit($id: ID!, $input: UpdateCreditInput!) {\n\t\tupdateCredit(id: $id, input: $input) {\n\t\t\t...CreditFields\n\t\t}\n\t}\n": typeof types.UpdateCreditDocument,
     "\n\tmutation RemoveCredit($id: ID!) {\n\t\tremoveCredit(id: $id)\n\t}\n": typeof types.RemoveCreditDocument,
+    "\n\tquery Search($query: String!, $limit: Int) {\n\t\tsearch(query: $query, limit: $limit) {\n\t\t\t__typename\n\t\t\t... on Movie {\n\t\t\t\tid\n\t\t\t\ttitle\n\t\t\t\treleaseDate\n\t\t\t}\n\t\t\t... on Person {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t\tcredits {\n\t\t\t\t\ttype\n\t\t\t\t\tmovie {\n\t\t\t\t\t\tid\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n": typeof types.SearchDocument,
 };
 const documents: Documents = {
     "\n\tfragment MovieCardFields on Movie {\n\t\tid\n\t\ttitle\n\t\treleaseDate\n\t\tgenres\n\t\tthumbnailUrl: artworkUrl(variant: THUMBNAIL)\n\t}\n": types.MovieCardFieldsFragmentDoc,
@@ -59,6 +60,7 @@ const documents: Documents = {
     "\n\tmutation AddCredit($input: AddCreditInput!) {\n\t\taddCredit(input: $input) {\n\t\t\t...CreditFields\n\t\t}\n\t}\n": types.AddCreditDocument,
     "\n\tmutation UpdateCredit($id: ID!, $input: UpdateCreditInput!) {\n\t\tupdateCredit(id: $id, input: $input) {\n\t\t\t...CreditFields\n\t\t}\n\t}\n": types.UpdateCreditDocument,
     "\n\tmutation RemoveCredit($id: ID!) {\n\t\tremoveCredit(id: $id)\n\t}\n": types.RemoveCreditDocument,
+    "\n\tquery Search($query: String!, $limit: Int) {\n\t\tsearch(query: $query, limit: $limit) {\n\t\t\t__typename\n\t\t\t... on Movie {\n\t\t\t\tid\n\t\t\t\ttitle\n\t\t\t\treleaseDate\n\t\t\t}\n\t\t\t... on Person {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t\tcredits {\n\t\t\t\t\ttype\n\t\t\t\t\tmovie {\n\t\t\t\t\t\tid\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n": types.SearchDocument,
 };
 
 /**
@@ -145,6 +147,10 @@ export function graphql(source: "\n\tmutation UpdateCredit($id: ID!, $input: Upd
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n\tmutation RemoveCredit($id: ID!) {\n\t\tremoveCredit(id: $id)\n\t}\n"): typeof import('./graphql').RemoveCreditDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tquery Search($query: String!, $limit: Int) {\n\t\tsearch(query: $query, limit: $limit) {\n\t\t\t__typename\n\t\t\t... on Movie {\n\t\t\t\tid\n\t\t\t\ttitle\n\t\t\t\treleaseDate\n\t\t\t}\n\t\t\t... on Person {\n\t\t\t\tid\n\t\t\t\tname\n\t\t\t\tcredits {\n\t\t\t\t\ttype\n\t\t\t\t\tmovie {\n\t\t\t\t\t\tid\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n"): typeof import('./graphql').SearchDocument;
 
 
 export function graphql(source: string) {

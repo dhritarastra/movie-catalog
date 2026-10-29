@@ -213,3 +213,27 @@ export const RemoveCreditMutation = graphql(`
 		removeCredit(id: $id)
 	}
 `);
+
+/** One search across movie titles and person names, best match first. */
+export const SearchQuery = graphql(`
+	query Search($query: String!, $limit: Int) {
+		search(query: $query, limit: $limit) {
+			__typename
+			... on Movie {
+				id
+				title
+				releaseDate
+			}
+			... on Person {
+				id
+				name
+				credits {
+					type
+					movie {
+						id
+					}
+				}
+			}
+		}
+	}
+`);

@@ -5,7 +5,7 @@ import { png } from './images';
  * The browser smoke test: one flow through the whole stack, extended as
  * features arrive. Everything else is covered by faster tests at lower layers.
  */
-test('create, edit and delete a movie with artwork, a person and their credits, with failures explained', async ({
+test('create, edit and delete a movie with artwork, a person and their credits, search for them, with failures explained', async ({
 	page
 }) => {
 	const stamp = Date.now();
@@ -426,6 +426,55 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await page.getByLabel('Role').selectOption('DIRECTOR');
 		await page.getByRole('button', { name: 'Add credit' }).click();
 		await expect(page.getByRole('list', { name: 'Creators' })).toContainText('Director');
+	});
+
+	await test.step('the header search opens results for movies and people, labelled, with roles', async () => {
+		const header = page.getByRole('searchbox', { name: 'Search movies and people' });
+		await header.fill(` ${stamp} `);
+		await header.press('Enter');
+
+		await expect(page).toHaveURL(new RegExp(`/search\\?q=${stamp}$`));
+		await expect(page.getByRole('searchbox', { name: 'Search movies and people' })).toHaveValue(
+			String(stamp)
+		);
+		const rows = page.getByRole('list', { name: 'Results' }).getByRole('listitem');
+		const movieRow = rows.filter({ has: page.getByRole('link', { name: creditedTitle }) });
+		const personRow = rows.filter({ has: page.getByRole('link', { name: editedPerson }) });
+		await expect(movieRow).toContainText('Movie');
+		await expect(personRow).toContainText('Person');
+		await expect(personRow).toContainText('Cast · Director, 1 movie');
+	});
+
+	await test.step('a search result opens its page, and Back returns to the same results', async () => {
+		await page
+			.getByRole('list', { name: 'Results' })
+			.getByRole('link', { name: editedPerson })
+			.click();
+		await expect(page.getByRole('heading', { name: editedPerson, level: 1 })).toBeVisible();
+
+		await page.goBack();
+		await expect(page).toHaveURL(new RegExp(`/search\\?q=${stamp}$`));
+		await expect(page.getByRole('list', { name: 'Results' })).toContainText(editedPerson);
+	});
+
+	await test.step('a typed % is matched literally, and a search with no match says so', async () => {
+		const box = page.getByRole('searchbox', { name: 'Search movies and people' });
+		const status = page.locator('#search-status');
+		// As a wildcard, % would match every name and title containing the stamp.
+		await box.fill(`${stamp}%`);
+		await expect(status).toContainText(`Nothing matches “${stamp}%”.`);
+		await expect(page).toHaveURL(new RegExp(`/search\\?q=${stamp}%25$`));
+
+		await box.fill('');
+		await expect(status).toContainText("Type part of a movie title or a person's name.");
+		await expect(page).toHaveURL(/\/search$/);
+
+		await box.fill(String(stamp));
+		await page
+			.getByRole('list', { name: 'Results' })
+			.getByRole('link', { name: creditedTitle })
+			.click();
+		await expect(page.getByRole('heading', { name: creditedTitle, level: 1 })).toBeVisible();
 	});
 
 	await test.step('the person page lists their credits, and deleting them is refused until those are removed', async () => {
