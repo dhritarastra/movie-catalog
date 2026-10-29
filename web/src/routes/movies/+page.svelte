@@ -3,7 +3,7 @@
 	import type { ResolvedPathname } from '$app/types';
 	import { page } from '$app/state';
 	import MovieCard from '#lib/components/MovieCard.svelte';
-	import { describeError, request } from '#lib/graphql/client.ts';
+	import { describeReadError, request } from '#lib/graphql/client.ts';
 	import type { MoviesQuery as MoviesResult } from '#lib/graphql/generated/graphql.ts';
 	import { MoviesQuery } from '#lib/graphql/operations.ts';
 
@@ -33,7 +33,8 @@
 		request(MoviesQuery, { page: { offset, limit: PAGE_SIZE } }, { signal: controller.signal })
 			.then((data) => (view = { status: 'ready', movies: data.movies }))
 			.catch((error) => {
-				if (error?.name !== 'AbortError') view = { status: 'error', message: describeError(error) };
+				if (error?.name !== 'AbortError')
+					view = { status: 'error', message: describeReadError(error) };
 			});
 		return () => controller.abort();
 	});

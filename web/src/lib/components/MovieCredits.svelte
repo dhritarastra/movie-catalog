@@ -10,7 +10,12 @@
 		type CreditFormValues
 	} from '#lib/credits.ts';
 	import { tick } from 'svelte';
-	import { describeError, GraphQlRequestError, request } from '#lib/graphql/client.ts';
+	import {
+		describeError,
+		describeReadError,
+		GraphQlRequestError,
+		request
+	} from '#lib/graphql/client.ts';
 	import type { CreditFieldsFragment } from '#lib/graphql/generated/graphql.ts';
 	import {
 		AddCreditMutation,
@@ -47,7 +52,8 @@
 		editing = null;
 		removing = null;
 		load(id, controller.signal).catch((error) => {
-			if (error?.name !== 'AbortError') view = { status: 'error', message: describeError(error) };
+			if (error?.name !== 'AbortError')
+				view = { status: 'error', message: describeReadError(error) };
 		});
 		return () => controller.abort();
 	});
@@ -70,7 +76,7 @@
 			await load(movieId);
 		} catch (error) {
 			if (stillHere())
-				showToast('error', `The credits could not be reloaded: ${describeError(error)}`);
+				showToast('error', `The credits could not be reloaded: ${describeReadError(error)}`);
 		}
 	}
 
