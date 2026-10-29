@@ -140,6 +140,8 @@ and the real services:
   removed
 - search from the header, see the movie and the person labelled with their roles, open a result
   and come Back to the same results, and check that a typed `%` matches only itself
+- check that each search is sent once, fast typing is never lost, a slower older search never
+  replaces a newer one, and a search that timed out can be retried
 
 The successful in-flight steps hold real GraphQL responses (the server has already saved).
 The late-failure steps inject delayed field-error and timeout responses. Neither depends on
@@ -238,7 +240,9 @@ Search finds movies by title and people by name in one ranked list: the whole ti
 first, then ones that start with the query, then ones that contain it, then alphabetically.
 Case is ignored for every letter (`ZOË` finds `Zoë`), accents are not, and `%`, `_` and `\`
 match themselves. Queries are trimmed and up to 200 characters; `limit` defaults to 10 and may
-be up to `catalog.search.max-limit` (50).
+be up to `catalog.search.max-limit` (50). Each search scans the movie and person tables; that is
+fast at this catalogue's size, and a `pg_trgm` GIN index on the lowered title and name would be
+the next step for a large one.
 
 ```graphql
 query {
