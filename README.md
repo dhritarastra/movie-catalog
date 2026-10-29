@@ -4,9 +4,9 @@ A movie catalog with artwork, cast and creators. It has a Svelte + TypeScript fr
 Kotlin Spring Boot services: the frontend talks to the backend over GraphQL, and the
 services talk to each other over gRPC.
 
-> **Status: in progress.** You can list, create, view, edit and delete movies and people (cast
-> and creators), and upload, replace and remove movie artwork, through the whole stack. Crediting
-> people on movies and search are next.
+> **Status: in progress.** You can list, create, view, edit and delete movies and people, upload,
+> replace and remove movie artwork, and credit people on movies as cast or creators, through the
+> whole stack. Search is next.
 
 ## Architecture
 
@@ -133,6 +133,11 @@ and the real services:
 - use Back/Forward during deletion: a reused detail page clears the old dialog and stays usable
 - remove the artwork and delete the movie, each after a confirmation
 - add, edit and delete a person, with the form's validation messages
+- credit the person on a movie as cast and as a creator, with the form locked while the save is
+  in flight; a duplicate role is refused, editing replaces the character and billing order, and a
+  credit removed elsewhere while being edited is explained
+- see the person's credits on their page, and have their deletion refused until the credits are
+  removed
 
 The successful in-flight steps hold real GraphQL responses (the server has already saved).
 The late-failure steps inject delayed field-error and timeout responses. Neither depends on
@@ -205,6 +210,25 @@ mutation {
 }
 ```
 
+Credits link a person to a movie as `CAST`, `DIRECTOR`, `WRITER` or `PRODUCER`. Only cast
+credits have a character name; the billing order (0 to 1000) sorts each list. A person can hold
+several roles on one movie, but the same role and character twice is a `CONFLICT`. Credits are
+last-write-wins: they carry no version, and changing them does not change the movie's or the
+person's version. Deleting a movie deletes its credits; a person with credits cannot be deleted
+(`FAILED_PRECONDITION`) until those are removed.
+
+```graphql
+mutation {
+  addCredit(input: { movieId: "<id>", personId: "<id>", type: CAST, characterName: "Louise Banks", billingOrder: 0 }) {
+    id
+    person { name }
+  }
+}
+```
+
+A movie's `cast` and `creators`, and a person's `credits`, are loaded in one catalog call per
+field for a whole page, not one call per movie or person.
+
 Artwork is uploaded with the
 [GraphQL multipart request spec](https://github.com/jaydenseric/graphql-multipart-request-spec):
 
@@ -216,8 +240,8 @@ curl http://localhost:3000/graphql \
 ```
 
 Images are JPEG or PNG, up to 5 MB and 8000×8000 pixels. Errors carry `extensions.code`
-(`BAD_REQUEST` with `fieldErrors`, `NOT_FOUND`, `CONFLICT`, `RESOURCE_EXHAUSTED`,
-`SERVICE_UNAVAILABLE`, ...).
+(`BAD_REQUEST` with `fieldErrors`, `NOT_FOUND`, `CONFLICT`, `FAILED_PRECONDITION`,
+`RESOURCE_EXHAUSTED`, `SERVICE_UNAVAILABLE`, ...).
 
 ## How AI tools were used
 
