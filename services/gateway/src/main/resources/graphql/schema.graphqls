@@ -75,8 +75,10 @@ type Credit {
   "Only set for cast credits."
   characterName: String
   billingOrder: Int!
-  movie: Movie!
-  person: Person!
+  "Null only if the movie was deleted while this response was being built."
+  movie: Movie
+  "Null only if the person was deleted while this response was being built."
+  person: Person
 }
 
 union SearchResult = Movie | Person
