@@ -42,10 +42,27 @@ run `docker compose down -v`.
 Only the web app (port 3000) and Postgres (5432, for development) are published, and only on
 `127.0.0.1`. To change ports or passwords, copy `.env.example` to `.env` and edit it.
 
+### Demo data
+
+With the stack running and the catalog still empty, add 13 films, 62 people and their credits:
+
+```bash
+docker compose run --rm seed
+```
+
+It goes through the same GraphQL API as the web app, so every rule applies, and takes a few
+seconds. The films and credits are real (the main cast, the directors and writers, and a few
+producers); the synopses and bios are written for this project, and the artwork is an abstract
+poster drawn from each title (The Matrix is left without one, to show the placeholder). It
+refuses to run on a catalog that already has movies or people, since it would add them all
+again; `docker compose down -v` empties it. If a run stops part way, it says how far it got, and
+the same reset lets you start again. During local development,
+`cd web && SEED_URL=http://localhost:8080/graphql npm run seed` does the same against the gateway.
+
 ## Develop locally
 
 Needs **JDK 17+** to run Gradle (the build uses Java 21, downloaded automatically if missing),
-**Node.js 22**, and Docker.
+**Node.js 22.18 or later** (it runs the seed's TypeScript directly), and Docker.
 
 ```bash
 docker compose up -d --wait postgres
