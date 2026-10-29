@@ -28,6 +28,9 @@ import com.moviecatalog.catalog.v1.Person
 import com.moviecatalog.catalog.v1.PersonFields
 import com.moviecatalog.catalog.v1.PersonServiceGrpc
 import com.moviecatalog.catalog.v1.RemoveCreditRequest
+import com.moviecatalog.catalog.v1.SearchHit
+import com.moviecatalog.catalog.v1.SearchRequest
+import com.moviecatalog.catalog.v1.SearchServiceGrpc
 import com.moviecatalog.catalog.v1.SetArtworkRequest
 import com.moviecatalog.catalog.v1.UpdateCreditRequest
 import com.moviecatalog.catalog.v1.UpdateMovieRequest
@@ -48,6 +51,7 @@ class CatalogClient(
     private val movies: MovieServiceGrpc.MovieServiceBlockingStub,
     private val people: PersonServiceGrpc.PersonServiceBlockingStub,
     private val credits: CreditServiceGrpc.CreditServiceBlockingStub,
+    private val searches: SearchServiceGrpc.SearchServiceBlockingStub,
     private val properties: GatewayProperties,
 ) {
     fun listMovies(offset: Int, limit: Int): ListMoviesResponse =
@@ -139,6 +143,10 @@ class CatalogClient(
     fun creditsByPersonIds(personIds: List<String>): Map<String, List<Credit>> =
         credits.withDeadline().getCreditsByPersonIds(GetCreditsByPersonIdsRequest.newBuilder().addAllPersonIds(personIds).build())
             .creditsMap.mapValues { it.value.creditsList }
+
+    /** Movies and people matching [query], best match first. */
+    fun search(query: String, limit: Int): List<SearchHit> =
+        searches.withDeadline().search(SearchRequest.newBuilder().setQuery(query).setLimit(limit).build()).hitsList
 
     private fun page(offset: Int, limit: Int) = PageRequest.newBuilder().setOffset(offset).setLimit(limit)
 

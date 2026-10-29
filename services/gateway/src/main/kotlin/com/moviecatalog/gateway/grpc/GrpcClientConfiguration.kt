@@ -3,6 +3,7 @@ package com.moviecatalog.gateway.grpc
 import com.moviecatalog.catalog.v1.CreditServiceGrpc
 import com.moviecatalog.catalog.v1.MovieServiceGrpc
 import com.moviecatalog.catalog.v1.PersonServiceGrpc
+import com.moviecatalog.catalog.v1.SearchServiceGrpc
 import com.moviecatalog.media.v1.MediaServiceGrpc
 import io.grpc.ManagedChannel
 import org.springframework.context.annotation.Bean
@@ -27,6 +28,9 @@ class GrpcClientConfiguration(channels: GrpcChannelFactory) {
 
     @Bean
     fun creditStub(): CreditServiceGrpc.CreditServiceBlockingStub = CreditServiceGrpc.newBlockingStub(catalog)
+
+    @Bean
+    fun searchStub(): SearchServiceGrpc.SearchServiceBlockingStub = SearchServiceGrpc.newBlockingStub(catalog)
 
     @Bean
     fun mediaStub(): MediaServiceGrpc.MediaServiceStub = MediaServiceGrpc.newStub(media)

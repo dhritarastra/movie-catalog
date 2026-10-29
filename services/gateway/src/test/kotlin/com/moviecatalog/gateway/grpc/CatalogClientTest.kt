@@ -10,7 +10,12 @@ import com.moviecatalog.catalog.v1.ListMoviesRequest
 import com.moviecatalog.catalog.v1.ListMoviesResponse
 import com.moviecatalog.catalog.v1.Movie
 import com.moviecatalog.catalog.v1.MovieServiceGrpc
+import com.moviecatalog.catalog.v1.Person
 import com.moviecatalog.catalog.v1.PersonServiceGrpc
+import com.moviecatalog.catalog.v1.SearchHit
+import com.moviecatalog.catalog.v1.SearchRequest
+import com.moviecatalog.catalog.v1.SearchResponse
+import com.moviecatalog.catalog.v1.SearchServiceGrpc
 import com.moviecatalog.catalog.v1.SetArtworkRequest
 import com.moviecatalog.gateway.config.GatewayProperties
 import com.moviecatalog.gateway.credit.CreditType
@@ -95,14 +100,33 @@ class CatalogClientTest {
     }
 
     private val credits = FakeCredits()
+    private val searches = FakeSearch()
+
+    @Test
+    fun `search sends the query and limit as given, and returns the hits in order`() {
+        val client = start(FakeMovies(), Duration.ofSeconds(2))
+
+        val hits = client.search("arrival", 7)
+
+        assertThat(searches.last!!.query).isEqualTo("arrival")
+        assertThat(searches.last!!.limit).isEqualTo(7)
+        assertThat(hits.map { it.hitCase }).containsExactly(SearchHit.HitCase.MOVIE, SearchHit.HitCase.PERSON)
+    }
 
     private fun start(movies: FakeMovies, deadline: Duration): CatalogClient {
-        server = InProcessServerBuilder.forName(name).addService(movies).addService(FakePeople()).addService(credits).build().start()
+        server = InProcessServerBuilder.forName(name)
+            .addService(movies)
+            .addService(FakePeople())
+            .addService(credits)
+            .addService(searches)
+            .build()
+            .start()
         channel = InProcessChannelBuilder.forName(name).build()
         return CatalogClient(
             MovieServiceGrpc.newBlockingStub(channel),
             PersonServiceGrpc.newBlockingStub(channel),
             CreditServiceGrpc.newBlockingStub(channel),
+            SearchServiceGrpc.newBlockingStub(channel),
             GatewayProperties(5_242_880, deadline, Duration.ofSeconds(10), Duration.ofSeconds(10), 64 * 1024, Duration.ofSeconds(60)),
         )
     }
@@ -140,6 +164,21 @@ class CatalogClientTest {
         override fun addCredit(request: AddCreditRequest, responseObserver: StreamObserver<Credit>) {
             lastAdd = request
             responseObserver.onNext(Credit.newBuilder().setId("credit").build())
+            responseObserver.onCompleted()
+        }
+    }
+
+    private class FakeSearch : SearchServiceGrpc.SearchServiceImplBase() {
+        var last: SearchRequest? = null
+
+        override fun search(request: SearchRequest, responseObserver: StreamObserver<SearchResponse>) {
+            last = request
+            responseObserver.onNext(
+                SearchResponse.newBuilder()
+                    .addHits(SearchHit.newBuilder().setMovie(Movie.newBuilder().setId("m")))
+                    .addHits(SearchHit.newBuilder().setPerson(Person.newBuilder().setId("p")))
+                    .build(),
+            )
             responseObserver.onCompleted()
         }
     }
