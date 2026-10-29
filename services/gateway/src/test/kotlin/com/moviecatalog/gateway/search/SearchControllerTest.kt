@@ -61,6 +61,30 @@ class SearchControllerTest(@Autowired graphQlService: ExecutionGraphQlService) {
     }
 
     @Test
+    fun `an explicit null limit means the default of 10, as it does for paging`() {
+        every { catalog.search("x", 10) } returns emptyList()
+
+        graphQl.document("""{ search(query: "x", limit: null) { __typename } }""")
+            .execute()
+            .path("search").entityList(Any::class.java).hasSize(0)
+
+        verify { catalog.search("x", 10) }
+    }
+
+    @Test
+    fun `a catalog that is down or too slow is SERVICE_UNAVAILABLE`() {
+        listOf(Status.UNAVAILABLE, Status.DEADLINE_EXCEEDED).forEach { status ->
+            every { catalog.search("x", 10) } throws status.asRuntimeException()
+
+            graphQl.document("""{ search(query: "x") { __typename } }""")
+                .execute()
+                .errors().satisfy { errors ->
+                    assertThat(errors.single().extensions["code"]).describedAs(status.code.name).isEqualTo("SERVICE_UNAVAILABLE")
+                }
+        }
+    }
+
+    @Test
     fun `a rejected query is a BAD_REQUEST`() {
         every { catalog.search("  ", 10) } throws Status.INVALID_ARGUMENT.withDescription("query: is required").asRuntimeException()
 
