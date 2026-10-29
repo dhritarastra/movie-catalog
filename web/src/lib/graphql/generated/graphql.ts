@@ -185,6 +185,17 @@ export type RemoveCreditMutationVariables = Exact<{
 
 export type RemoveCreditMutation = { removeCredit: string };
 
+export type SearchQueryVariables = Exact<{
+  query: string;
+  limit?: number | null | undefined;
+}>;
+
+
+export type SearchQuery = { search: Array<
+    | { __typename: 'Movie', id: string, title: string, releaseDate: string | null }
+    | { __typename: 'Person', id: string, name: string, credits: Array<{ type: CreditType, movie: { id: string } | null }> }
+  > };
+
 export class TypedDocumentString<TResult, TVariables>
   extends String
   implements DocumentTypeDecoration<TResult, TVariables>
@@ -471,3 +482,25 @@ export const RemoveCreditDocument = new TypedDocumentString(`
   removeCredit(id: $id)
 }
     `) as unknown as TypedDocumentString<RemoveCreditMutation, RemoveCreditMutationVariables>;
+export const SearchDocument = new TypedDocumentString(`
+    query Search($query: String!, $limit: Int) {
+  search(query: $query, limit: $limit) {
+    __typename
+    ... on Movie {
+      id
+      title
+      releaseDate
+    }
+    ... on Person {
+      id
+      name
+      credits {
+        type
+        movie {
+          id
+        }
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<SearchQuery, SearchQueryVariables>;
