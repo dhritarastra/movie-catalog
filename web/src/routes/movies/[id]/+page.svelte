@@ -6,7 +6,12 @@
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import MovieCredits from '#lib/components/MovieCredits.svelte';
 	import { formatRuntime, yearOf } from '#lib/format.ts';
-	import { describeError, GraphQlRequestError, request } from '#lib/graphql/client.ts';
+	import {
+		describeError,
+		describeReadError,
+		GraphQlRequestError,
+		request
+	} from '#lib/graphql/client.ts';
 	import type { MovieDetailFieldsFragment } from '#lib/graphql/generated/graphql.ts';
 	import {
 		DeleteMovieMutation,
@@ -41,7 +46,8 @@
 					(view = data.movie ? { status: 'ready', movie: data.movie } : { status: 'not-found' })
 			)
 			.catch((error) => {
-				if (error?.name !== 'AbortError') view = { status: 'error', message: describeError(error) };
+				if (error?.name !== 'AbortError')
+					view = { status: 'error', message: describeReadError(error) };
 			});
 		return () => controller.abort();
 	});

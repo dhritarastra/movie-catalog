@@ -4,7 +4,12 @@
 	import { page } from '$app/state';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
 	import { formatDate, yearOf } from '#lib/format.ts';
-	import { describeError, GraphQlRequestError, request } from '#lib/graphql/client.ts';
+	import {
+		describeError,
+		describeReadError,
+		GraphQlRequestError,
+		request
+	} from '#lib/graphql/client.ts';
 	import { describeRole, resolved } from '#lib/credits.ts';
 	import type {
 		PersonDetailFieldsFragment,
@@ -39,7 +44,8 @@
 					(view = data.person ? { status: 'ready', person: data.person } : { status: 'not-found' })
 			)
 			.catch((error) => {
-				if (error?.name !== 'AbortError') view = { status: 'error', message: describeError(error) };
+				if (error?.name !== 'AbortError')
+					view = { status: 'error', message: describeReadError(error) };
 			});
 		return () => controller.abort();
 	});

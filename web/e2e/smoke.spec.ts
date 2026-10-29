@@ -21,6 +21,27 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByRole('heading', { name: 'Movies', level: 1 })).toBeVisible();
 	});
 
+	await test.step('a list that timed out says to try again, and Retry loads it', async () => {
+		await page.route('**/graphql', async (route) => {
+			if (operationName(route.request()) !== 'Movies') return route.fallback();
+			await route.fulfill({
+				json: {
+					data: null,
+					errors: [{ message: 'Too slow', extensions: { code: 'SERVICE_UNAVAILABLE' } }]
+				}
+			});
+		});
+		await page.reload();
+		// Loading saves nothing, so the message must not ask whether a change was saved.
+		await expect(page.getByRole('alert')).toContainText(
+			'The server did not respond in time. Try again.'
+		);
+		await page.unrouteAll({ behavior: 'wait' });
+		await page.getByRole('button', { name: 'Retry' }).click();
+		await expect(page.getByRole('alert')).toBeHidden();
+		await expect(page.getByRole('link', { name: 'Add movie' }).first()).toBeVisible();
+	});
+
 	await test.step('the form explains a missing title before sending anything', async () => {
 		await page.getByRole('link', { name: 'Add movie' }).first().click();
 		await page.getByRole('button', { name: 'Add movie' }).click();

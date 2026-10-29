@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import PersonForm from '#lib/components/PersonForm.svelte';
-	import { describeError, request } from '#lib/graphql/client.ts';
+	import { describeReadError, request } from '#lib/graphql/client.ts';
 	import type { PersonDetailFieldsFragment, PersonInput } from '#lib/graphql/generated/graphql.ts';
 	import { PersonQuery, UpdatePersonMutation } from '#lib/graphql/operations.ts';
 	import { trackVisit } from '#lib/navigation.ts';
@@ -30,7 +30,8 @@
 					(view = data.person ? { status: 'ready', person: data.person } : { status: 'not-found' })
 			)
 			.catch((error) => {
-				if (error?.name !== 'AbortError') view = { status: 'error', message: describeError(error) };
+				if (error?.name !== 'AbortError')
+					view = { status: 'error', message: describeReadError(error) };
 			});
 		return () => controller.abort();
 	});

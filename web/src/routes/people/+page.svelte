@@ -3,7 +3,7 @@
 	import type { ResolvedPathname } from '$app/types';
 	import { page } from '$app/state';
 	import { yearOf } from '#lib/format.ts';
-	import { describeError, request } from '#lib/graphql/client.ts';
+	import { describeReadError, request } from '#lib/graphql/client.ts';
 	import type { PeopleQuery as PeopleResult } from '#lib/graphql/generated/graphql.ts';
 	import { PeopleQuery } from '#lib/graphql/operations.ts';
 
@@ -31,7 +31,8 @@
 		request(PeopleQuery, { page: { offset, limit: PAGE_SIZE } }, { signal: controller.signal })
 			.then((data) => (view = { status: 'ready', people: data.people }))
 			.catch((error) => {
-				if (error?.name !== 'AbortError') view = { status: 'error', message: describeError(error) };
+				if (error?.name !== 'AbortError')
+					view = { status: 'error', message: describeReadError(error) };
 			});
 		return () => controller.abort();
 	});
