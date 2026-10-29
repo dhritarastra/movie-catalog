@@ -1,6 +1,9 @@
 package com.moviecatalog.gateway.grpc
 
 import com.moviecatalog.catalog.v1.ArtworkChangeResponse
+import com.moviecatalog.catalog.v1.AddCreditRequest
+import com.moviecatalog.catalog.v1.Credit
+import com.moviecatalog.catalog.v1.CreditServiceGrpc
 import com.moviecatalog.catalog.v1.DeletePersonRequest
 import com.moviecatalog.catalog.v1.DeletePersonResponse
 import com.moviecatalog.catalog.v1.ListMoviesRequest
@@ -10,6 +13,7 @@ import com.moviecatalog.catalog.v1.MovieServiceGrpc
 import com.moviecatalog.catalog.v1.PersonServiceGrpc
 import com.moviecatalog.catalog.v1.SetArtworkRequest
 import com.moviecatalog.gateway.config.GatewayProperties
+import com.moviecatalog.gateway.credit.CreditType
 import io.grpc.Context
 import io.grpc.ManagedChannel
 import io.grpc.Server
@@ -24,6 +28,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+import com.moviecatalog.catalog.v1.CreditType as CreditTypeProto
 
 /** Request mapping and deadlines for catalog calls, against a fake catalog over in-process gRPC. */
 class CatalogClientTest {
@@ -76,12 +81,28 @@ class CatalogClientTest {
         assertThat(client.deletePerson("person", 3)).isEqualTo("person-deleted")
     }
 
+    @Test
+    fun `addCredit sends the role and billing order, and leaves out a missing character`() {
+        val client = start(FakeMovies(), Duration.ofSeconds(2))
+
+        client.addCredit("movie", "person", CreditType.DIRECTOR, null, 2)
+        assertThat(credits.lastAdd!!.type).isEqualTo(CreditTypeProto.CREDIT_TYPE_DIRECTOR)
+        assertThat(credits.lastAdd!!.hasCharacterName()).isFalse()
+        assertThat(credits.lastAdd!!.billingOrder).isEqualTo(2)
+
+        client.addCredit("movie", "person", CreditType.CAST, "Louise Banks", 0)
+        assertThat(credits.lastAdd!!.characterName).isEqualTo("Louise Banks")
+    }
+
+    private val credits = FakeCredits()
+
     private fun start(movies: FakeMovies, deadline: Duration): CatalogClient {
-        server = InProcessServerBuilder.forName(name).addService(movies).addService(FakePeople()).build().start()
+        server = InProcessServerBuilder.forName(name).addService(movies).addService(FakePeople()).addService(credits).build().start()
         channel = InProcessChannelBuilder.forName(name).build()
         return CatalogClient(
             MovieServiceGrpc.newBlockingStub(channel),
             PersonServiceGrpc.newBlockingStub(channel),
+            CreditServiceGrpc.newBlockingStub(channel),
             GatewayProperties(5_242_880, deadline, Duration.ofSeconds(10), Duration.ofSeconds(10), 64 * 1024, Duration.ofSeconds(60)),
         )
     }
@@ -109,6 +130,16 @@ class CatalogClientTest {
     private class FakePeople : PersonServiceGrpc.PersonServiceImplBase() {
         override fun deletePerson(request: DeletePersonRequest, responseObserver: StreamObserver<DeletePersonResponse>) {
             responseObserver.onNext(DeletePersonResponse.newBuilder().setId("${request.id}-deleted").build())
+            responseObserver.onCompleted()
+        }
+    }
+
+    private class FakeCredits : CreditServiceGrpc.CreditServiceImplBase() {
+        var lastAdd: AddCreditRequest? = null
+
+        override fun addCredit(request: AddCreditRequest, responseObserver: StreamObserver<Credit>) {
+            lastAdd = request
+            responseObserver.onNext(Credit.newBuilder().setId("credit").build())
             responseObserver.onCompleted()
         }
     }

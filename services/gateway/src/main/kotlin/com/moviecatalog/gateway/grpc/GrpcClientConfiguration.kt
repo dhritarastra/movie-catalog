@@ -1,5 +1,6 @@
 package com.moviecatalog.gateway.grpc
 
+import com.moviecatalog.catalog.v1.CreditServiceGrpc
 import com.moviecatalog.catalog.v1.MovieServiceGrpc
 import com.moviecatalog.catalog.v1.PersonServiceGrpc
 import com.moviecatalog.media.v1.MediaServiceGrpc
@@ -23,6 +24,9 @@ class GrpcClientConfiguration(channels: GrpcChannelFactory) {
 
     @Bean
     fun personStub(): PersonServiceGrpc.PersonServiceBlockingStub = PersonServiceGrpc.newBlockingStub(catalog)
+
+    @Bean
+    fun creditStub(): CreditServiceGrpc.CreditServiceBlockingStub = CreditServiceGrpc.newBlockingStub(catalog)
 
     @Bean
     fun mediaStub(): MediaServiceGrpc.MediaServiceStub = MediaServiceGrpc.newStub(media)
