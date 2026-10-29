@@ -49,6 +49,16 @@ class InputValidatorTest {
     }
 
     @Test
+    fun `extra violations from rules an annotation cannot express are merged in form order`() {
+        val extra = listOf(FieldViolation("zebra_name", "clashes with alpha"))
+
+        val error = assertThrows<InvalidArgumentException> { validator.check(Input("abc", "", listOf()), extra) }
+
+        assertThat(error.violations).containsExactly(FieldViolation("zebra_name", "clashes with alpha"), FieldViolation("alpha", "is required"))
+        assertThrows<InvalidArgumentException> { validator.check(Input("abc", "abc", listOf()), extra) }
+    }
+
+    @Test
     fun `the same problem on several list entries is reported once`() {
         val error = assertThrows<InvalidArgumentException> { validator.check(Input("abc", "abc", listOf("abc", "abcd"))) }
 

@@ -5,6 +5,7 @@ import com.moviecatalog.catalog.CatalogGrpcTest
 import com.moviecatalog.catalog.badRequestFields
 import com.moviecatalog.catalog.v1.CreatePersonRequest
 import com.moviecatalog.catalog.v1.DeletePersonRequest
+import com.moviecatalog.catalog.v1.GetPeopleByIdsRequest
 import com.moviecatalog.catalog.v1.GetPersonRequest
 import com.moviecatalog.catalog.v1.ListPeopleRequest
 import com.moviecatalog.catalog.v1.PageRequest
@@ -33,6 +34,8 @@ class PersonGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
 
     @BeforeEach
     fun emptyTable() {
+        // Credits first: a person with credits cannot be deleted.
+        jdbc.sql("DELETE FROM credit").update()
         jdbc.sql("DELETE FROM person").update()
     }
 
@@ -184,6 +187,17 @@ class PersonGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
         assertThat(get(person.id).version).isEqualTo(2)
         val stale = assertThrows<StatusRuntimeException> { people.updatePerson(update(person.id, person.version, fields)) }
         assertThat(stale.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+    @Test
+    fun `looks up several people at once, leaving out ids that do not exist`() {
+        val amy = create(PersonFields.newBuilder().setName("Amy Adams"))
+        val missing = UUID.randomUUID().toString()
+
+        val found = people.getPeopleByIds(GetPeopleByIdsRequest.newBuilder().addAllIds(listOf(amy.id, missing)).build())
+
+        assertThat(found.peopleMap.keys).containsExactly(amy.id)
+        assertThat(found.peopleMap[amy.id]!!.name).isEqualTo("Amy Adams")
     }
 
     private fun create(fields: PersonFields.Builder): PersonProto =

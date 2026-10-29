@@ -7,6 +7,7 @@ import com.moviecatalog.catalog.v1.ClearArtworkRequest
 import com.moviecatalog.catalog.v1.CreateMovieRequest
 import com.moviecatalog.catalog.v1.DeleteMovieRequest
 import com.moviecatalog.catalog.v1.GetMovieRequest
+import com.moviecatalog.catalog.v1.GetMoviesByIdsRequest
 import com.moviecatalog.catalog.v1.ListMoviesRequest
 import com.moviecatalog.catalog.v1.MovieFields
 import com.moviecatalog.catalog.v1.MovieServiceGrpc
@@ -284,6 +285,20 @@ class MovieGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
         assertThat(same.movie.version).isEqualTo(4)
         assertThat(same.previousArtworkId).isEqualTo(artwork)
         assertThat(get(movie.id).version).isEqualTo(4)
+    }
+
+    @Test
+    fun `looks up several movies at once, leaving out ids that do not exist`() {
+        val arrival = create(MovieFields.newBuilder().setTitle("Arrival"))
+        val dune = create(MovieFields.newBuilder().setTitle("Dune"))
+        val missing = UUID.randomUUID().toString()
+
+        val found = movies.getMoviesByIds(GetMoviesByIdsRequest.newBuilder().addAllIds(listOf(arrival.id, dune.id, missing)).build())
+
+        assertThat(found.moviesMap.keys).containsExactlyInAnyOrder(arrival.id, dune.id)
+        assertThat(found.moviesMap[dune.id]!!.title).isEqualTo("Dune")
+        val malformed = assertThrows<StatusRuntimeException> { movies.getMoviesByIds(GetMoviesByIdsRequest.newBuilder().addIds("42").build()) }
+        assertThat(badRequestFields(malformed)).containsExactly("ids")
     }
 
     private fun get(id: String): MovieProto = movies.getMovie(GetMovieRequest.newBuilder().setId(id).build())

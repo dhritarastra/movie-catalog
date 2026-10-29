@@ -6,6 +6,8 @@ import com.moviecatalog.catalog.common.toTimestamp
 import com.moviecatalog.catalog.v1.CreatePersonRequest
 import com.moviecatalog.catalog.v1.DeletePersonRequest
 import com.moviecatalog.catalog.v1.DeletePersonResponse
+import com.moviecatalog.catalog.v1.GetPeopleByIdsRequest
+import com.moviecatalog.catalog.v1.GetPeopleByIdsResponse
 import com.moviecatalog.catalog.v1.GetPersonRequest
 import com.moviecatalog.catalog.v1.ListPeopleRequest
 import com.moviecatalog.catalog.v1.ListPeopleResponse
@@ -16,10 +18,7 @@ import io.grpc.stub.StreamObserver
 import org.springframework.stereotype.Service
 import com.moviecatalog.catalog.v1.Person as PersonProto
 
-/**
- * gRPC endpoint for people, shaped like MovieGrpcService. GetPeopleByIds still returns
- * UNIMPLEMENTED: it arrives with credits, which are its only caller.
- */
+/** gRPC endpoint for people, shaped like MovieGrpcService. */
 @Service
 class PersonGrpcService(private val people: PersonService) : PersonServiceGrpc.PersonServiceImplBase() {
     override fun createPerson(request: CreatePersonRequest, responseObserver: StreamObserver<PersonProto>) =
@@ -27,6 +26,14 @@ class PersonGrpcService(private val people: PersonService) : PersonServiceGrpc.P
 
     override fun getPerson(request: GetPersonRequest, responseObserver: StreamObserver<PersonProto>) =
         responseObserver.complete(people.get(RequestArguments.uuid("id", request.id)).toProto())
+
+    /** Backs the gateway's batch lookups; IDs that do not exist are absent from the map. */
+    override fun getPeopleByIds(request: GetPeopleByIdsRequest, responseObserver: StreamObserver<GetPeopleByIdsResponse>) {
+        val ids = request.idsList.map { RequestArguments.uuid("ids", it) }
+        responseObserver.complete(
+            GetPeopleByIdsResponse.newBuilder().putAllPeople(people.getAll(ids).associate { it.id.toString() to it.toProto() }).build(),
+        )
+    }
 
     override fun listPeople(request: ListPeopleRequest, responseObserver: StreamObserver<ListPeopleResponse>) {
         val page = people.list(request.page.offset, request.page.limit)

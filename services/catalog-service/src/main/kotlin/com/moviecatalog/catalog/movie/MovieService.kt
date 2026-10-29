@@ -29,6 +29,9 @@ class MovieService(
 
     fun get(id: UUID): Movie = repository.findByIdOrNull(id) ?: throw notFound(id)
 
+    /** The movies that exist among [ids]; unknown IDs are left out. */
+    fun getAll(ids: Collection<UUID>): List<Movie> = repository.findAllById(ids)
+
     /** Newest first; the id tie-breaker keeps the order stable across pages. */
     fun list(offset: Int, limit: Int): Page<Movie> = repository.findAll(paging.of(offset, limit, NEWEST_FIRST))
 

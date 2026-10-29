@@ -19,6 +19,16 @@ class CatalogGrpcExceptionHandlerTest {
     }
 
     @Test
+    fun `duplicates and blocked deletes map to ALREADY_EXISTS and FAILED_PRECONDITION with the message`() {
+        val duplicate = handler.handleException(AlreadyExistsException("twice"))!!.status
+        val blocked = handler.handleException(FailedPreconditionException("remove credits first"))!!.status
+
+        assertThat(duplicate.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+        assertThat(blocked.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+        assertThat(blocked.description).isEqualTo("remove credits first")
+    }
+
+    @Test
     fun `a write that lost a race is a conflict too`() {
         assertThat(handler.handleException(OptimisticLockingFailureException("lost"))!!.status.code).isEqualTo(Status.Code.ABORTED)
     }
