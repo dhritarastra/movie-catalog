@@ -3,9 +3,13 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
-	import { formatDate } from '#lib/format.ts';
+	import { formatDate, yearOf } from '#lib/format.ts';
 	import { describeError, GraphQlRequestError, request } from '#lib/graphql/client.ts';
-	import type { PersonDetailFieldsFragment } from '#lib/graphql/generated/graphql.ts';
+	import { describeRole, resolved } from '#lib/credits.ts';
+	import type {
+		PersonDetailFieldsFragment,
+		PersonQuery as PersonQueryResult
+	} from '#lib/graphql/generated/graphql.ts';
 	import { DeletePersonMutation, PersonQuery } from '#lib/graphql/operations.ts';
 	import { trackVisit } from '#lib/navigation.ts';
 	import { showToast } from '#lib/toasts.svelte.ts';
@@ -14,7 +18,7 @@
 		| { status: 'loading' }
 		| { status: 'not-found' }
 		| { status: 'error'; message: string }
-		| { status: 'ready'; person: PersonDetailFieldsFragment };
+		| { status: 'ready'; person: NonNullable<PersonQueryResult['person']> };
 
 	const id = $derived(page.params.id ?? '');
 	let view = $state<View>({ status: 'loading' });
@@ -45,6 +49,11 @@
 	let confirmError = $state<string | null>(null);
 
 	const visit = trackVisit();
+
+	/** Several credits can be on one movie (cast and director, say), so movies are counted once. */
+	function creditedMovies(person: NonNullable<PersonQueryResult['person']>): number {
+		return new Set(resolved(person.credits, 'movie').map((credit) => credit.movie.id)).size;
+	}
 
 	/** Like deleting a movie: if the user leaves while this runs, they get a toast but stay where they went. */
 	async function remove(person: PersonDetailFieldsFragment) {
@@ -104,6 +113,7 @@
 	</div>
 {:else}
 	{@const person = view.person}
+	{@const credits = resolved(person.credits, 'movie')}
 	<article class="details">
 		<div class="title-row">
 			<h1>{person.name}</h1>
@@ -121,12 +131,33 @@
 		</div>
 		{#if person.birthDate}<p class="muted">Born {formatDate(person.birthDate)}</p>{/if}
 		{#if person.bio}<p class="bio">{person.bio}</p>{/if}
+
+		<section class="credits-section" aria-labelledby="credits-heading">
+			<h2 id="credits-heading">Credits</h2>
+			{#if credits.length === 0}
+				<p class="muted">No credits yet. Credit them from a movie's page.</p>
+			{:else}
+				<ul class="credits" aria-label="Credits">
+					{#each credits as credit (credit.id)}
+						<li>
+							<a href={resolve('/movies/[id]', { id: credit.movie.id })}>{credit.movie.title}</a>
+							{#if credit.movie.releaseDate}
+								<span class="muted">({yearOf(credit.movie.releaseDate)})</span>
+							{/if}
+							<span class="muted">· {describeRole(credit)}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
 	</article>
 
 	<ConfirmDialog
 		open={confirming}
 		title={`Delete ${person.name}?`}
-		message="This person will be permanently deleted."
+		message={creditedMovies(person) > 0
+			? `${person.name} is credited on ${creditedMovies(person) === 1 ? 'a movie' : `${creditedMovies(person)} movies`}. Remove those credits first.`
+			: 'This person will be permanently deleted.'}
 		confirmLabel="Delete person"
 		{busy}
 		error={confirmError}
@@ -162,6 +193,32 @@
 	.title-row .actions {
 		display: flex;
 		gap: 0.5rem;
+	}
+
+	.credits-section {
+		display: grid;
+		gap: 0.5rem;
+		margin-top: 1rem;
+	}
+
+	.credits-section h2 {
+		margin: 0;
+	}
+
+	.credits {
+		display: grid;
+		gap: 0.25rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.credits li {
+		display: flex;
+		gap: 0.4rem;
+		flex-wrap: wrap;
+		padding: 0.4rem 0;
+		border-bottom: 1px solid var(--border);
 	}
 
 	.bio {
