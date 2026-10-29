@@ -15,9 +15,10 @@ import org.springframework.stereotype.Controller
  */
 @Controller
 class SearchController(private val catalog: CatalogClient) {
+    /** An explicit null [limit] means the default, as it does for paging. */
     @QueryMapping
-    fun search(@Argument query: String, @Argument limit: Int): List<Any> =
-        catalog.search(query, limit).map { hit ->
+    fun search(@Argument query: String, @Argument limit: Int?): List<Any> =
+        catalog.search(query, limit ?: DEFAULT_SEARCH_LIMIT).map { hit ->
             when (hit.hitCase) {
                 SearchHit.HitCase.MOVIE -> MovieView.of(hit.movie)
                 SearchHit.HitCase.PERSON -> PersonView.of(hit.person)
@@ -26,3 +27,6 @@ class SearchController(private val catalog: CatalogClient) {
             }
         }
 }
+
+/** The same default as `limit: Int = 10` on `search` in schema.graphqls. */
+const val DEFAULT_SEARCH_LIMIT = 10

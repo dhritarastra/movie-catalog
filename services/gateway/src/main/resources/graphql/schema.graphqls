@@ -13,6 +13,7 @@ type Query {
     nameContains: String
   ): PersonPage!
   person(id: ID!): Person
+  "Movies and people matching the query, best match first. An explicit null limit means the default of 10."
   search(query: String!, limit: Int = 10): [SearchResult!]!
 }
 
