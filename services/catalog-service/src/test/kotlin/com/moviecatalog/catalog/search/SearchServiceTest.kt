@@ -59,8 +59,11 @@ class SearchServiceTest {
         every { movies.findAllById(any()) } returns emptyList()
         every { people.findAllById(any()) } returns emptyList()
         service.search("x".repeat(200), 10)
+        // Non-ASCII letters count one each, as they do for titles and names.
+        service.search("é".repeat(200), 10)
 
         val error = assertThrows<InvalidArgumentException> { service.search("x".repeat(201), 10) }
+        assertThrows<InvalidArgumentException> { service.search("é".repeat(201), 10) }
 
         assertThat(error.violations).containsExactly(FieldViolation("query", "must be at most 200 characters"))
     }
