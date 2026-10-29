@@ -1,5 +1,6 @@
 package com.moviecatalog.catalog.person
 
+import com.moviecatalog.catalog.common.FailedPreconditionException
 import com.moviecatalog.catalog.common.InvalidArgumentException
 import com.moviecatalog.catalog.common.NotFoundException
 import com.moviecatalog.catalog.common.Paging
@@ -13,9 +14,12 @@ import io.mockk.verify
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.hibernate.exception.ConstraintViolationException
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
+import java.sql.SQLException
 import java.time.LocalDate
 import java.util.Optional
 import java.util.UUID
@@ -110,6 +114,27 @@ class PersonServiceTest {
 
         verify { repository.delete(stored) }
     }
+
+    @Test
+    fun `deleting a person who still has credits is refused with what to do first`() {
+        every { repository.findById(id) } returns Optional.of(Person("Amy Adams", null, null))
+        every { repository.flush() } throws violation("credit_person_id_fkey")
+
+        val refused = assertThrows<FailedPreconditionException> { service.delete(id, 1) }
+
+        assertThat(refused.message).contains("Remove their credits first")
+    }
+
+    @Test
+    fun `any other database failure on delete is not disguised as credits`() {
+        every { repository.findById(id) } returns Optional.of(Person("Amy Adams", null, null))
+        every { repository.flush() } throws violation("some_other_constraint")
+
+        assertThrows<DataIntegrityViolationException> { service.delete(id, 1) }
+    }
+
+    private fun violation(constraint: String) =
+        DataIntegrityViolationException("rejected", ConstraintViolationException("rejected", SQLException("rejected"), constraint))
 
     @Test
     fun `delete from a stale version keeps the person, and an unknown person is not found`() {

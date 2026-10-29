@@ -1,9 +1,12 @@
 package com.moviecatalog.catalog.person
 
+import com.moviecatalog.catalog.common.FailedPreconditionException
 import com.moviecatalog.catalog.common.NotFoundException
 import com.moviecatalog.catalog.common.Paging
 import com.moviecatalog.catalog.common.VersionConflictException
 import com.moviecatalog.catalog.common.validation.InputValidator
+import org.hibernate.exception.ConstraintViolationException
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Sort
 import org.springframework.data.repository.findByIdOrNull
@@ -28,6 +31,9 @@ class PersonService(
 
     fun get(id: UUID): Person = repository.findByIdOrNull(id) ?: throw notFound(id)
 
+    /** The people who exist among [ids]; unknown IDs are left out. */
+    fun getAll(ids: Collection<UUID>): List<Person> = repository.findAllById(ids)
+
     /**
      * Alphabetical through the name column's ICU collation (case and accents break letter ties)
      * (V2__create_person.sql). The id tie-breaker keeps people with the same name in a stable order.
@@ -45,10 +51,21 @@ class PersonService(
         return repository.saveAndFlush(person)
     }
 
+    /**
+     * Deletes the person if they are still at [expectedVersion] and have no credits. The
+     * database's foreign key from credit to person refuses the delete while any credit exists,
+     * so a credit added at the same moment is caught too.
+     */
     @Transactional
     fun delete(id: UUID, expectedVersion: Int) {
         repository.delete(current(id, expectedVersion))
-        repository.flush()
+        try {
+            repository.flush()
+        } catch (e: DataIntegrityViolationException) {
+            // Only the credit foreign key means "still credited"; anything else is reported as it is.
+            if ((e.cause as? ConstraintViolationException)?.constraintName != "credit_person_id_fkey") throw e
+            throw FailedPreconditionException("This person is credited on a movie. Remove their credits first, then delete them.")
+        }
     }
 
     /** The person the caller wants to change, if they saw the current version; see MovieService. */

@@ -21,6 +21,8 @@ class CatalogGrpcExceptionHandler : GrpcExceptionHandler {
         when (exception) {
             is NotFoundException -> Status.NOT_FOUND.withDescription(exception.message).asException()
             is VersionConflictException -> Status.ABORTED.withDescription(exception.message).asException()
+            is AlreadyExistsException -> Status.ALREADY_EXISTS.withDescription(exception.message).asException()
+            is FailedPreconditionException -> Status.FAILED_PRECONDITION.withDescription(exception.message).asException()
             is InvalidArgumentException -> invalidArgument(exception)
             // Two writes raced and this one lost: the row changed after it was read.
             is OptimisticLockingFailureException ->

@@ -9,6 +9,8 @@ import com.moviecatalog.catalog.v1.CreateMovieRequest
 import com.moviecatalog.catalog.v1.DeleteMovieRequest
 import com.moviecatalog.catalog.v1.DeleteMovieResponse
 import com.moviecatalog.catalog.v1.GetMovieRequest
+import com.moviecatalog.catalog.v1.GetMoviesByIdsRequest
+import com.moviecatalog.catalog.v1.GetMoviesByIdsResponse
 import com.moviecatalog.catalog.v1.ListMoviesRequest
 import com.moviecatalog.catalog.v1.ListMoviesResponse
 import com.moviecatalog.catalog.v1.MovieFields
@@ -31,6 +33,14 @@ class MovieGrpcService(private val movies: MovieService) : MovieServiceGrpc.Movi
 
     override fun getMovie(request: GetMovieRequest, responseObserver: StreamObserver<MovieProto>) =
         responseObserver.complete(movies.get(RequestArguments.uuid("id", request.id)).toProto())
+
+    /** Backs the gateway's batch lookups; IDs that do not exist are absent from the map. */
+    override fun getMoviesByIds(request: GetMoviesByIdsRequest, responseObserver: StreamObserver<GetMoviesByIdsResponse>) {
+        val ids = request.idsList.map { RequestArguments.uuid("ids", it) }
+        responseObserver.complete(
+            GetMoviesByIdsResponse.newBuilder().putAllMovies(movies.getAll(ids).associate { it.id.toString() to it.toProto() }).build(),
+        )
+    }
 
     override fun listMovies(request: ListMoviesRequest, responseObserver: StreamObserver<ListMoviesResponse>) {
         val page = movies.list(request.page.offset, request.page.limit)

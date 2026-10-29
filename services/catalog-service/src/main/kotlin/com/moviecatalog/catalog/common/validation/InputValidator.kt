@@ -14,13 +14,13 @@ import kotlin.reflect.full.primaryConstructor
  */
 @Component
 class InputValidator(private val validator: Validator) {
-    fun check(input: Any) {
-        val violations = validator.validate(input)
+    /** [extra] carries rules an annotation cannot express, such as ones that involve two fields. */
+    fun check(input: Any, extra: List<FieldViolation> = emptyList()) {
+        val violations = validator.validate(input).map { FieldViolation(fieldName(it), it.message) } + extra
         if (violations.isEmpty()) return
         val order = input::class.primaryConstructor?.parameters?.map { it.name }.orEmpty()
         throw InvalidArgumentException(
             violations
-                .map { FieldViolation(fieldName(it), it.message) }
                 .distinct()
                 .sortedWith(compareBy({ order.indexOf(toCamelCase(it.field)) }, { it.description })),
         )
