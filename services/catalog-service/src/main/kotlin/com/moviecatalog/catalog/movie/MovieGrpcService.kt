@@ -107,7 +107,8 @@ private fun MovieFields.toInput() =
         genres = genresList,
     )
 
-private fun Movie.toProto(): MovieProto =
+/** Also used by SearchGrpcService, so a movie looks the same in every response. */
+internal fun Movie.toProto(): MovieProto =
     MovieProto.newBuilder()
         .setId(requireNotNull(id) { "a saved movie has an id" }.toString())
         .setTitle(title)
