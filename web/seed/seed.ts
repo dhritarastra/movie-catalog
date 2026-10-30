@@ -4,7 +4,10 @@ import {
 	type SeedMovie,
 	type SeedPerson
 } from './films.ts';
-import { posterPng } from './poster.ts';
+import { readFileSync } from 'node:fs';
+
+/** One original abstract poster, used as every seeded movie's artwork. */
+const POSTER = readFileSync(new URL('./poster.png', import.meta.url));
 
 /** What the seed needs from the GraphQL API, so tests can stand in for the server. */
 export interface Api {
@@ -89,7 +92,7 @@ export async function seedCatalog(
 				}
 			);
 			if (movie.poster) {
-				await api.upload(createMovie.id, createMovie.version, posterPng(movie.title), 'poster.png');
+				await api.upload(createMovie.id, createMovie.version, POSTER, 'poster.png');
 			}
 
 			const credits = [

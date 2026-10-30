@@ -17,13 +17,13 @@ Browser -> nginx (static web, /graphql and /media proxies)
                    -> gRPC -> media-service   -> Postgres media database + file volume
 ```
 
-| Module | What it is |
-|---|---|
-| `proto/` | Shared `.proto` contracts; generates Java messages and gRPC stubs |
-| `services/catalog-service` | Movies, people, credits and search (gRPC server) |
-| `services/media-service` | Artwork storage, validation and thumbnails (gRPC server) |
-| `services/gateway` | GraphQL API and image downloads for the web app; calls the other services over gRPC |
-| `web/` | SvelteKit single-page app, served by nginx in Docker |
+| Module                     | What it is                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| `proto/`                   | Shared `.proto` contracts; generates Java messages and gRPC stubs                   |
+| `services/catalog-service` | Movies, people, credits and search (gRPC server)                                    |
+| `services/media-service`   | Artwork storage, validation and thumbnails (gRPC server)                            |
+| `services/gateway`         | GraphQL API and image downloads for the web app; calls the other services over gRPC |
+| `web/`                     | SvelteKit single-page app, served by nginx in Docker                                |
 
 ## Run everything with Docker
 
@@ -52,9 +52,9 @@ docker compose run --rm seed
 
 It goes through the same GraphQL API as the web app, so every rule applies, and takes a few
 seconds. The films and credits are real (the main cast, the directors and writers, and a few
-producers); the synopses and bios are written for this project, and the artwork is an abstract
-poster drawn from each title (The Matrix is left without one, to show the placeholder). It
-refuses to run on a catalog that already has movies or people, since it would add them all
+producers); the synopses and bios are written for this project, and the artwork is one original
+abstract poster used for each movie (The Matrix is left without one, to show the placeholder).
+It refuses to run on a catalog that already has movies or people, since it would add them all
 again; `docker compose down -v` empties it. If a run stops part way, it says how far it got, and
 the same reset lets you start again. During local development,
 `cd web && SEED_URL=http://localhost:8080/graphql npm run seed` does the same against the gateway.
@@ -88,13 +88,13 @@ cd web && npm install && npm run dev
 
 Open **http://localhost:5173**. Vite forwards `/graphql` and `/media` to the gateway on port 8080.
 
-| Component | Port |
-|---|---|
-| web (Vite dev server) | 5173 |
-| gateway (HTTP; GraphQL at `/graphql`, images at `/media/{id}`) | 8080 |
-| catalog-service (gRPC) | 9091 |
-| media-service (gRPC) | 9092 |
-| Postgres | 5432 (`POSTGRES_PORT`) |
+| Component                                                      | Port                   |
+| -------------------------------------------------------------- | ---------------------- |
+| web (Vite dev server)                                          | 5173                   |
+| gateway (HTTP; GraphQL at `/graphql`, images at `/media/{id}`) | 8080                   |
+| catalog-service (gRPC)                                         | 9091                   |
+| media-service (gRPC)                                           | 9092                   |
+| Postgres                                                       | 5432 (`POSTGRES_PORT`) |
 
 `bootRun` does not read `.env`; only Compose does. The services' defaults match `.env.example`.
 If you change the Postgres port or a password, export the matching variables before `bootRun`,
@@ -145,6 +145,7 @@ lint rules.
 
 `web/e2e/smoke.spec.ts` drives one user flow in Chromium against the running stack, through nginx
 and the real services:
+
 - create a movie, upload artwork and see it displayed, and reload the movie's URL
 - check that bad uploads are refused with a message
 - edit the movie, checking that the form is locked while the save is in flight
@@ -214,7 +215,12 @@ GraphQL at `POST /graphql`; the full schema is
 query {
   movies(page: { offset: 0, limit: 12 }) {
     totalCount
-    items { id title releaseDate artworkUrl(variant: THUMBNAIL) }
+    items {
+      id
+      title
+      releaseDate
+      artworkUrl(variant: THUMBNAIL)
+    }
   }
 }
 ```
@@ -232,7 +238,11 @@ For example:
 
 ```graphql
 mutation {
-  updatePerson(id: "<id>", version: 1, input: { name: "Amy Adams", birthDate: "1974-08-20" }) {
+  updatePerson(
+    id: "<id>"
+    version: 1
+    input: { name: "Amy Adams", birthDate: "1974-08-20" }
+  ) {
     version
   }
 }
@@ -247,9 +257,19 @@ person's version. Deleting a movie deletes its credits; a person with credits ca
 
 ```graphql
 mutation {
-  addCredit(input: { movieId: "<id>", personId: "<id>", type: CAST, characterName: "Louise Banks", billingOrder: 0 }) {
+  addCredit(
+    input: {
+      movieId: "<id>"
+      personId: "<id>"
+      type: CAST
+      characterName: "Louise Banks"
+      billingOrder: 0
+    }
+  ) {
     id
-    person { name }
+    person {
+      name
+    }
   }
 }
 ```
@@ -273,8 +293,17 @@ one.
 query {
   search(query: "arrival") {
     __typename
-    ... on Movie { id title }
-    ... on Person { id name credits { type } }
+    ... on Movie {
+      id
+      title
+    }
+    ... on Person {
+      id
+      name
+      credits {
+        type
+      }
+    }
   }
 }
 ```
@@ -304,6 +333,7 @@ are used to verify changes. Some refactor commits preceded full Docker/browser v
 commit messages record those gaps. Check the CI run for the exact commit being reviewed.
 
 **Tools**
+
 - **Claude Code** (Anthropic): turning the brief into a plan, checking current library
   versions, and writing code and tests from my prompts, one slice at a time.
 - **Astra**, a second AI agent: reviewed the plan and the first working slice.
@@ -341,18 +371,19 @@ flowchart LR
 
 The loop is written down in the repository, as plain Markdown that Claude Code reads:
 
-| File | What it is |
-|---|---|
-| [`CLAUDE.md`](CLAUDE.md) | The conventions every run follows: stack, code style, testing rules, the process |
-| [`.claude/skills/verify`](.claude/skills/verify/SKILL.md) | The checks run after every change, reported as PASS or FAIL |
-| [`.claude/skills/gen-tests`](.claude/skills/gen-tests/SKILL.md) | Where each kind of test goes, and the edge-case checklist |
-| [`.claude/skills/ship-slice`](.claude/skills/ship-slice/SKILL.md) | The whole loop for one feature |
-| [`.claude/agents/code-reviewer.md`](.claude/agents/code-reviewer.md) | A read-only reviewer that runs the tests but never edits code |
+| File                                                                 | What it is                                                                       |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| [`CLAUDE.md`](CLAUDE.md)                                             | The conventions every run follows: stack, code style, testing rules, the process |
+| [`.claude/skills/verify`](.claude/skills/verify/SKILL.md)            | The checks run after every change, reported as PASS or FAIL                      |
+| [`.claude/skills/gen-tests`](.claude/skills/gen-tests/SKILL.md)      | Where each kind of test goes, and the edge-case checklist                        |
+| [`.claude/skills/ship-slice`](.claude/skills/ship-slice/SKILL.md)    | The whole loop for one feature                                                   |
+| [`.claude/agents/code-reviewer.md`](.claude/agents/code-reviewer.md) | A read-only reviewer that runs the tests but never edits code                    |
 
 I wrote these down partway through, once the loop had settled over the first slices, and used
 them from then on. My plan and working log stay outside the repository.
 
 **What the checks caught**, for example:
+
 - Spring for GraphQL answered multipart uploads with HTTP 415 before the upload handler could
   run; the handler is now a router function ordered ahead of it.
 - A Kotlin builder field shadowed the value being copied, so every artwork change reported a
