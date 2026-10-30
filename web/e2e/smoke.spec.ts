@@ -350,6 +350,18 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await search.fill('Somebody else entirely');
 		await held.answered;
 		await expect(chosen).toBeDisabled();
+		// Saving now would use a choice the pending results may drop, so nothing is sent.
+		let earlyAdds = 0;
+		const countEarly = (request: Request) => {
+			if (operationName(request) === 'AddCredit') earlyAdds++;
+		};
+		page.on('request', countEarly);
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		await expect(page.locator('#personId-error')).toHaveText(
+			'Wait for the search to finish, then check who is chosen.'
+		);
+		page.off('request', countEarly);
+		expect(earlyAdds).toBe(0);
 		held.release();
 
 		// The new list does not show them, so the choice is dropped, and said so.
