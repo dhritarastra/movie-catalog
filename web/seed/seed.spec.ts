@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { SeedMovie, SeedPerson } from './films.ts';
 import { graphQlApi, seedCatalog, SeedError, type Api } from './seed.ts';
@@ -92,7 +93,8 @@ describe('seedCatalog', () => {
 		expect(calls[4].variables).toMatchObject({
 			movieId: 'movie-3',
 			version: 7,
-			fileName: 'poster.png'
+			fileName: 'poster.png',
+			bytes: readFileSync(new URL('./poster.png', import.meta.url)).length
 		});
 		expect(calls.slice(5).map((c) => c.variables?.input)).toEqual([
 			{
@@ -207,6 +209,17 @@ describe('seedCatalog', () => {
 			'Seeding stopped after adding 0 people and 0 movies: http://x did not answer within 30 seconds. ' +
 				'The catalog may now be partly seeded'
 		);
+	});
+});
+
+describe('poster.png', () => {
+	it('is a PNG within the 5 MiB upload limit', () => {
+		const png = readFileSync(new URL('./poster.png', import.meta.url));
+
+		expect(png.subarray(0, 8)).toEqual(
+			Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+		);
+		expect(png.length).toBeLessThan(5 * 1024 * 1024);
 	});
 });
 
