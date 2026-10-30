@@ -62,8 +62,9 @@
 
 	// Derived values only notify when they change, so a trailing space does not search again.
 	const searchText = $derived(query.trim());
-	// The list on screen belongs to an older search until the newer one answers, so it cannot
-	// be chosen from: the choice could be someone the newer results no longer list.
+	// The list on screen is current only once the latest search has answered. Until then (while
+	// it waits, loads or after it failed) nothing can be chosen or saved from it: the choice
+	// could be someone the latest results no longer list.
 	const listOutOfDate = $derived(
 		searching || matches.status !== 'ready' || matches.text !== searchText
 	);
