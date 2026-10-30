@@ -4,9 +4,9 @@ A movie catalog with artwork, cast and creators. It has a Svelte + TypeScript fr
 Kotlin Spring Boot services: the frontend talks to the backend over GraphQL, and the
 services talk to each other over gRPC.
 
-> **Status: in progress.** You can list, create, view, edit and delete movies and people, upload,
-> replace and remove movie artwork, credit people on movies as cast or creators, and search
-> across movies and people, through the whole stack.
+> **Status: feature-complete.** Everything the brief asks for works through the whole stack:
+> list, create, view, edit and delete movies and people; upload, replace and remove movie
+> artwork; credit people on movies as cast or creators; and search across movies and people.
 
 ## Architecture
 
@@ -146,6 +146,7 @@ lint rules.
 `web/e2e/smoke.spec.ts` drives one user flow in Chromium against the running stack, through nginx
 and the real services:
 
+- see a movie list that timed out say to try again, and load it with Retry
 - create a movie, upload artwork and see it displayed, and reload the movie's URL
 - check that bad uploads are refused with a message
 - edit the movie, checking that the form is locked while the save is in flight
@@ -158,9 +159,13 @@ and the real services:
 - use Back/Forward during deletion: a reused detail page clears the old dialog and stays usable
 - remove the artwork and delete the movie, each after a confirmation
 - add, edit and delete a person, with the form's validation messages
-- credit the person on a movie as cast and as a creator, with the form locked while the save is
-  in flight; a duplicate role is refused, editing replaces the character and billing order, and a
-  credit removed elsewhere while being edited is explained
+- credit the person on a movie as cast and as a creator, finding them by name even when 100
+  others sort first, with the form locked while the save is in flight; a duplicate role is
+  refused, editing replaces the character and billing order, and a credit removed elsewhere while
+  being edited is explained
+- keep a chosen person only while the list on screen shows them: a save is refused while the
+  person search is still answering or after it failed, and a search that drops them clears the
+  choice and says so
 - see the person's credits on their page, and have their deletion refused until the credits are
   removed
 - search from the header, see the movie and the person labelled with their roles, open a result
