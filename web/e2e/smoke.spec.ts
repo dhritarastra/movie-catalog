@@ -327,6 +327,51 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByRole('list', { name: 'Creators' }).getByRole('listitem')).toHaveCount(1);
 	});
 
+	await test.step('a chosen person is kept only while the list on screen shows them', async () => {
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		await choosePerson(page, editedPerson);
+		const search = page.getByRole('searchbox', { name: 'Person', exact: true });
+		const status = page.locator('#personId-status');
+		const chosen = page.getByRole('radio', { name: editedPerson, exact: true });
+
+		// Narrowing the search to their full name keeps them chosen, since they are still listed.
+		const narrowed = page.waitForResponse(
+			(response) =>
+				operationName(response.request()) === 'PersonPicker' &&
+				response.request().postDataJSON()?.variables?.nameContains === editedPerson
+		);
+		await search.fill(editedPerson);
+		await narrowed;
+		await expect(chosen).toBeChecked();
+		await expect(status).toContainText(`Chosen: ${editedPerson}.`);
+
+		// While a newer search is on its way, the list on screen is out of date and cannot be used.
+		const held = await holdResponse(page, 'PersonPicker');
+		await search.fill('Somebody else entirely');
+		await held.answered;
+		await expect(chosen).toBeDisabled();
+		held.release();
+
+		// The new list does not show them, so the choice is dropped, and said so.
+		await expect(status).toContainText("No one's name contains “Somebody else entirely”.");
+		await expect(status).toContainText('Choice cleared.');
+		await expect(status).not.toContainText('Chosen:');
+		await page.getByLabel('Role').selectOption('PRODUCER');
+
+		let adds = 0;
+		const count = (request: Request) => {
+			if (operationName(request) === 'AddCredit') adds++;
+		};
+		page.on('request', count);
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		await expect(page.locator('#personId-error')).toHaveText('Choose a person.');
+		page.off('request', count);
+		expect(adds).toBe(0);
+
+		await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+		await expect(page.getByRole('list', { name: 'Creators' })).not.toContainText('Producer');
+	});
+
 	await test.step('a failed search can be retried, and a slower older search never replaces a newer one', async () => {
 		await page.getByRole('button', { name: 'Add credit' }).click();
 		const search = page.getByRole('searchbox', { name: 'Person', exact: true });

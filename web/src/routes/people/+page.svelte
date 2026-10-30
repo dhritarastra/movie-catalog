@@ -7,6 +7,7 @@
 	import type { PeopleQuery as PeopleResult } from '#lib/graphql/generated/graphql.ts';
 	import { PeopleQuery } from '#lib/graphql/operations.ts';
 
+	// The catalog refuses to start with a catalog.paging.max-limit below this (PagingProperties).
 	const PAGE_SIZE = 20;
 
 	const pageHref = (n: number) => `${resolve('/people')}?page=${n}` as ResolvedPathname;

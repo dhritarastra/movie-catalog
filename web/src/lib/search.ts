@@ -1,7 +1,10 @@
 import { CREDIT_TYPES, roleLabel } from './credits.ts';
 import type { CreditType } from './graphql/generated/graphql.ts';
 
-/** How many results the search page asks for: well under the catalog's catalog.search.max-limit. */
+/**
+ * How many results the search page asks for. The catalog refuses to start with a
+ * catalog.search.max-limit below this (SearchProperties.CLIENT_LIMIT), so keep the two in step.
+ */
 export const SEARCH_LIMIT = 10;
 
 /** The search page's address for a query; a blank query is the page with no search. */

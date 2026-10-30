@@ -54,10 +54,17 @@
 	let matches = $state<Matches>({ status: 'loading' });
 	let searching = $state(false);
 	let chosenName = $state<string | null>(null);
+	// Set when new results no longer list the chosen person, so the status can say so once.
+	let choiceCleared = $state(false);
 	let attempt = $state(0);
 
 	// Derived values only notify when they change, so a trailing space does not search again.
 	const searchText = $derived(query.trim());
+	// The list on screen belongs to an older search until the newer one answers, so it cannot
+	// be chosen from: the choice could be someone the newer results no longer list.
+	const listOutOfDate = $derived(
+		searching || (matches.status === 'ready' && matches.text !== searchText)
+	);
 
 	$effect(() => {
 		if (!adding) return;
@@ -71,6 +78,12 @@
 				searching = true;
 				request(PersonPickerQuery, { nameContains: text || null }, { signal: controller.signal })
 					.then((data) => {
+						// A choice is kept only while the list shows it, so what is saved is what is seen.
+						choiceCleared = !!personId && !data.people.items.some((p) => p.id === personId);
+						if (choiceCleared) {
+							personId = '';
+							chosenName = null;
+						}
 						matches = {
 							status: 'ready',
 							text,
@@ -166,6 +179,7 @@
 				<!-- Everything a search changes is announced here, so the results are heard as well as seen. -->
 				<p class="muted hint" id="personId-status" aria-live="polite">
 					{#if chosenName}Chosen: <strong>{chosenName}</strong>.{/if}
+					{#if choiceCleared}Choice cleared.{/if}
 					{#if searching || matches.status === 'loading'}
 						Searching…
 					{:else if matches.status === 'ready' && matches.people.length === 0}
@@ -196,7 +210,11 @@
 									name="credit-person"
 									value={match.id}
 									bind:group={personId}
-									onchange={() => (chosenName = match.name)}
+									disabled={listOutOfDate}
+									onchange={() => {
+										chosenName = match.name;
+										choiceCleared = false;
+									}}
 								/>
 								{match.name}
 							</label>

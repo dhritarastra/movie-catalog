@@ -28,5 +28,8 @@ class SearchController(private val catalog: CatalogClient) {
         }
 }
 
-/** The same default as `limit: Int = 10` on `search` in schema.graphqls. */
+/**
+ * The same default as `limit: Int = 10` on `search` in schema.graphqls. The catalog refuses to
+ * start with a catalog.search.max-limit below this (SearchProperties.CLIENT_LIMIT there).
+ */
 const val DEFAULT_SEARCH_LIMIT = 10
