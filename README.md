@@ -102,6 +102,13 @@ for example `CATALOG_DB_URL=jdbc:postgresql://localhost:5433/catalog`. Each serv
 variables in `src/main/resources/application.yml`. Uploaded images go to `./media-data`
 unless `MEDIA_STORAGE_DIR` is set.
 
+The catalog's paging and search maximums are checked at startup, so a bad value stops the
+service with a message naming the setting instead of failing requests later:
+`catalog.paging.max-limit` must be at least 20 and `catalog.search.max-limit` at least 10, the
+largest page and the number of search results the web app and the gateway ask for. Those numbers
+live in the web app, the gateway and the catalog, with comments pointing to each other, so
+change them together.
+
 After changing `services/gateway/src/main/resources/graphql/schema.graphqls`, regenerate the web
 app's types with `cd web && npm run codegen`.
 
@@ -254,12 +261,13 @@ field for a whole page, not one call per movie or person.
 the credit form uses it to find anyone, however long the list of people.
 
 Search finds movies by title and people by name in one ranked list: the whole title or name
-first, then ones that start with the query, then ones that contain it, then alphabetically.
-Case is ignored for every letter (`ZOË` finds `Zoë`), accents are not, and `%`, `_` and `\`
-match themselves. Queries are trimmed and up to 200 characters; `limit` defaults to 10 and may
-be up to `catalog.search.max-limit` (50). Each search scans the movie and person tables; that is
-fast at this catalogue's size, and a `pg_trgm` GIN index on the lowered title and name would be
-the next step for a large one.
+first, then ones that start with the query, then ones that contain it, then alphabetically. Case
+is ignored for every letter (`ZOË` finds `Zoë`), accents are not, and `%`, `_` and `\` match
+themselves. Queries are trimmed and up to 200 characters; `limit` defaults to 10 and may be up
+to `catalog.search.max-limit` (50; the service refuses to start with less than the 10 the web
+app asks for). Each search scans the movie and person tables; that is fast at this catalogue's
+size, and a `pg_trgm` GIN index on the lowered title and name would be the next step for a large
+one.
 
 ```graphql
 query {
