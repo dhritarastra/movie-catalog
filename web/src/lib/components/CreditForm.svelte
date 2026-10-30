@@ -119,6 +119,10 @@
 		if (saving) return;
 		const values = { personId, type, characterName, billingOrder };
 		errors = validateCredit(values, adding);
+		// A newer search may drop the person chosen from the list on screen, so wait for it.
+		if (adding && personId && listOutOfDate) {
+			errors.personId = 'Wait for the search to finish, then check who is chosen.';
+		}
 		formError = null;
 		if (Object.keys(errors).length > 0) {
 			form?.querySelector<HTMLElement>(`#${Object.keys(errors)[0]}`)?.focus();
