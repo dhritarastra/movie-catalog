@@ -46,6 +46,8 @@
 
 	// Only an added credit needs a person chosen: they are found by typing part of their name.
 	const SEARCH_DELAY_MS = 250;
+	const WAIT_FOR_SEARCH = 'Wait for the search to finish, then check who is chosen.';
+	const RETRY_SEARCH = 'Retry the search, then check who is chosen.';
 	type Matches =
 		| { status: 'loading' }
 		| { status: 'error'; message: string }
@@ -63,7 +65,7 @@
 	// The list on screen belongs to an older search until the newer one answers, so it cannot
 	// be chosen from: the choice could be someone the newer results no longer list.
 	const listOutOfDate = $derived(
-		searching || (matches.status === 'ready' && matches.text !== searchText)
+		searching || matches.status !== 'ready' || matches.text !== searchText
 	);
 
 	$effect(() => {
@@ -90,10 +92,14 @@
 							people: data.people.items,
 							total: data.people.totalCount
 						};
+						if (errors.personId === WAIT_FOR_SEARCH || errors.personId === RETRY_SEARCH)
+							delete errors.personId;
 					})
 					.catch((error) => {
-						if (error?.name !== 'AbortError')
+						if (error?.name !== 'AbortError') {
 							matches = { status: 'error', message: describeReadError(error) };
+							if (errors.personId === WAIT_FOR_SEARCH) errors.personId = RETRY_SEARCH;
+						}
 					})
 					.finally(() => {
 						if (!controller.signal.aborted) searching = false;
@@ -121,7 +127,7 @@
 		errors = validateCredit(values, adding);
 		// A newer search may drop the person chosen from the list on screen, so wait for it.
 		if (adding && personId && listOutOfDate) {
-			errors.personId = 'Wait for the search to finish, then check who is chosen.';
+			errors.personId = matches.status === 'error' ? RETRY_SEARCH : WAIT_FOR_SEARCH;
 		}
 		formError = null;
 		if (Object.keys(errors).length > 0) {

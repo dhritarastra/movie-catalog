@@ -366,6 +366,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 
 		// The new list does not show them, so the choice is dropped, and said so.
 		await expect(status).toContainText("No one's name contains “Somebody else entirely”.");
+		await expect(page.locator('#personId-error')).toHaveCount(0);
 		await expect(status).toContainText('Choice cleared.');
 		await expect(status).not.toContainText('Chosen:');
 		await page.getByLabel('Role').selectOption('PRODUCER');
@@ -441,7 +442,8 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByRole('radio', { name: editedPerson })).toBeVisible();
 		await page.unrouteAll({ behavior: 'wait' });
 
-		// A failed search explains itself and can be retried; nobody matching is said plainly.
+		// A failed search cannot save a choice from the previous list, and can be retried.
+		await page.getByRole('radio', { name: editedPerson }).check();
 		let failed = false;
 		await page.route('**/graphql', async (route) => {
 			if (failed || operationName(route.request()) !== 'PersonPicker') return route.fallback();
@@ -455,11 +457,16 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		});
 		await search.fill('Nobody matches this');
 		await expect(page.getByRole('alert')).toBeVisible();
+		await page.getByRole('button', { name: 'Add credit' }).click();
+		await expect(page.locator('#personId-error')).toHaveText(
+			'Retry the search, then check who is chosen.'
+		);
 		await page.unrouteAll({ behavior: 'wait' });
 		await page.getByRole('button', { name: 'Retry' }).click();
 		await expect(page.locator('#personId-status')).toContainText(
 			"No one's name contains “Nobody matches this”."
 		);
+		await expect(page.locator('#personId-error')).toHaveCount(0);
 
 		await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 	});
