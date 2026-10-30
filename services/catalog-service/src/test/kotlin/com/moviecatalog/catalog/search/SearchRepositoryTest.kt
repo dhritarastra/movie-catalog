@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.context.annotation.Import
+import org.springframework.jdbc.core.JdbcTemplate
 import java.util.UUID
 
 /** The ranked search query against the real schema, collations and LIKE escaping. */
@@ -19,6 +20,7 @@ class SearchRepositoryTest(
     @Autowired private val search: SearchRepository,
     @Autowired private val movies: MovieRepository,
     @Autowired private val people: PersonRepository,
+    @Autowired private val jdbc: JdbcTemplate,
 ) {
     private val titles = mutableMapOf<UUID, String>()
 
@@ -68,6 +70,19 @@ class SearchRepositoryTest(
         assertThat(labels("0%")).containsExactly("100% Love")
         assertThat(labels("_")).containsExactly("A_B")
         assertThat(labels("""\""")).containsExactly("""AC\DC""")
+    }
+
+    @Test
+    fun `titles and names both use the ICU collation, so folding and order never depend on the database locale`() {
+        // The tests above would also pass on this image's en_US.utf8, so the guarantee is checked
+        // where it is made: a database whose locale is C would not lower "Ë" in a default column.
+        val collations = jdbc.queryForList(
+            "SELECT table_name || '.' || column_name || ' ' || collation_name FROM information_schema.columns " +
+                "WHERE (table_name, column_name) IN (('movie', 'title'), ('person', 'name')) ORDER BY table_name",
+            String::class.java,
+        )
+
+        assertThat(collations).containsExactly("movie.title und-x-icu", "person.name und-x-icu")
     }
 
     @Test
