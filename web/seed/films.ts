@@ -1,10 +1,5 @@
-/**
- * The demo catalogue: real films with facts only (titles, US release dates, runtimes, credits)
- * and synopses and bios written for this project. Release dates are the first US release,
- * limited or wide. Credits are the main cast and the directors and writers, plus a few producers.
- * Credits name people by their `name` here; the seed looks up the ID it created for each.
- * The movie list shows movies in the order written here, 12 to a page.
- */
+// Demo catalog: real film facts with synopses and bios written for this project.
+// Movies are listed in this order, 12 to a page.
 
 export interface SeedPerson {
 	name: string;
@@ -16,13 +11,15 @@ export type CreatorRole = 'DIRECTOR' | 'WRITER' | 'PRODUCER';
 
 export interface SeedMovie {
 	title: string;
+	// The film's id on themoviedb.org, used to fetch its poster.
+	tmdbId: number;
 	synopsis: string;
 	releaseDate: string;
 	runtimeMinutes: number;
 	genres: string[];
-	/** False leaves the movie without artwork, so the placeholder can be seen too. */
+	// false shows the placeholder instead of artwork.
 	poster: boolean;
-	/** In billing order. */
+	// In billing order.
 	cast: { name: string; character: string }[];
 	creators: { name: string; role: CreatorRole }[];
 }
@@ -95,6 +92,7 @@ export const people: SeedPerson[] = [
 export const movies: SeedMovie[] = [
 	{
 		title: 'Arrival',
+		tmdbId: 329865,
 		synopsis:
 			'A linguist is asked to talk with visitors whose ships have settled over the Earth, and finds that their language changes how she remembers.',
 		releaseDate: '2016-11-11',
@@ -113,6 +111,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'Blade Runner 2049',
+		tmdbId: 335984,
 		synopsis:
 			'Thirty years on, a replicant hunter in Los Angeles turns up a secret that leads him to a man who has been missing for decades.',
 		releaseDate: '2017-10-06',
@@ -132,6 +131,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'Dune',
+		tmdbId: 438631,
 		synopsis:
 			'The heir of a noble house goes with his family to rule a desert planet, the only source of the most valuable substance in the universe.',
 		releaseDate: '2021-10-22',
@@ -152,6 +152,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'Inception',
+		tmdbId: 27205,
 		synopsis:
 			'A thief who steals secrets from dreams is offered one last job: to plant an idea instead.',
 		releaseDate: '2010-07-16',
@@ -171,6 +172,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'Interstellar',
+		tmdbId: 157336,
 		synopsis:
 			'With crops failing across the Earth, a former pilot leaves his children to cross a wormhole in search of a new home.',
 		releaseDate: '2014-11-05',
@@ -191,6 +193,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'Oppenheimer',
+		tmdbId: 872585,
 		synopsis:
 			'The physicist who led the building of the first atomic bomb, from the desert test site to the hearing that took away his clearance.',
 		releaseDate: '2023-07-21',
@@ -211,6 +214,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'Parasite',
+		tmdbId: 496243,
 		synopsis:
 			'A poor family talks its way, one by one, into jobs with a rich one, until the house turns out to hold a secret of its own.',
 		releaseDate: '2019-10-11',
@@ -230,6 +234,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'Spirited Away',
+		tmdbId: 129,
 		synopsis:
 			'A girl moving house wanders into a world of spirits and must work in a bathhouse to free her parents.',
 		releaseDate: '2002-09-20',
@@ -248,6 +253,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'Amélie',
+		tmdbId: 194,
 		synopsis:
 			'A shy waitress in Montmartre quietly arranges small changes in the lives of the people around her, and has trouble doing the same for herself.',
 		releaseDate: '2001-11-02',
@@ -266,6 +272,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'Mad Max: Fury Road',
+		tmdbId: 76341,
 		synopsis:
 			'In a desert wasteland, a drifter and a rebel commander flee across the sand with the wives of a warlord, and his army in pursuit.',
 		releaseDate: '2015-05-15',
@@ -286,6 +293,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'The Grand Budapest Hotel',
+		tmdbId: 120467,
 		synopsis:
 			'The concierge of a famous mountain hotel and his young lobby boy are caught up in the theft of a priceless painting.',
 		releaseDate: '2014-03-07',
@@ -305,6 +313,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'Everything Everywhere All at Once',
+		tmdbId: 545611,
 		synopsis:
 			'A laundromat owner in the middle of a tax audit learns she can borrow skills from her lives in other universes, just as all of them are threatened.',
 		releaseDate: '2022-03-25',
@@ -325,6 +334,7 @@ export const movies: SeedMovie[] = [
 	},
 	{
 		title: 'The Matrix',
+		tmdbId: 603,
 		synopsis:
 			'A programmer learns that the world he lives in is a simulation, and joins the few who have escaped it.',
 		releaseDate: '1999-03-31',

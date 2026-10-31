@@ -6,19 +6,70 @@ import {
 } from './films.ts';
 import { readFileSync } from 'node:fs';
 
-/** One original abstract poster, used as every seeded movie's artwork. */
-const POSTER = readFileSync(new URL('./poster.png', import.meta.url));
-
-/** What the seed needs from the GraphQL API, so tests can stand in for the server. */
-export interface Api {
-	request<T>(query: string, variables?: Record<string, unknown>): Promise<T>;
-	/** Uploads a PNG as the movie's artwork. */
-	upload(movieId: string, version: number, png: Buffer, fileName: string): Promise<void>;
+export interface Artwork {
+	bytes: Buffer;
+	fileName: string;
+	contentType: string;
 }
 
-/** A failure the person running the seed can act on; run.ts prints only its message. */
+export interface Api {
+	request<T>(query: string, variables?: Record<string, unknown>): Promise<T>;
+	upload(movieId: string, version: number, artwork: Artwork): Promise<void>;
+}
+
 export class SeedError extends Error {
 	name = 'SeedError';
+	readonly code?: string;
+
+	// No parameter property: Node runs this file by stripping types, which doesn't support them.
+	constructor(message: string, code?: string) {
+		super(message);
+		this.code = code;
+	}
+}
+
+/** Where a movie's artwork comes from. */
+export type PosterSource = (movie: SeedMovie) => Promise<Artwork>;
+
+const SHARED_POSTER: Artwork = {
+	bytes: readFileSync(new URL('./poster.png', import.meta.url)),
+	fileName: 'poster.png',
+	contentType: 'image/png'
+};
+
+export const sharedPoster: PosterSource = async () => SHARED_POSTER;
+
+/** The film's real poster from TMDB, fetched with the user's own API read access token. */
+export function tmdbPosters(
+	token: string,
+	doFetch: typeof fetch = fetch,
+	timeoutMs = 30_000
+): PosterSource {
+	async function get(url: string, headers: Record<string, string> = {}): Promise<Response> {
+		const response = await doFetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+		if (!response.ok) throw new Error(`TMDB answered HTTP ${response.status}`);
+		return response;
+	}
+
+	return async (movie) => {
+		const details = await get(`https://api.themoviedb.org/3/movie/${movie.tmdbId}`, {
+			Authorization: `Bearer ${token}`
+		});
+		const { poster_path: path } = (await details.json()) as { poster_path?: string | null };
+		if (!path) throw new Error('TMDB has no poster for it');
+		const image = await get(`https://image.tmdb.org/t/p/w780${path}`);
+		return {
+			bytes: Buffer.from(await image.arrayBuffer()),
+			fileName: `${movie.tmdbId}.jpg`,
+			contentType: image.headers.get('content-type') ?? 'image/jpeg'
+		};
+	};
+}
+
+export interface SeedData {
+	people?: SeedPerson[];
+	movies?: SeedMovie[];
+	posters?: PosterSource;
 }
 
 const COUNTS = `query SeedCounts {
@@ -32,18 +83,13 @@ const UPLOAD_ARTWORK = `mutation SeedArtwork($movieId: ID!, $version: Int!, $fil
 	uploadArtwork(movieId: $movieId, version: $version, file: $file) { version }
 }`;
 
-/**
- * Adds the demo people, movies, artwork and credits through the public API, so every rule the
- * app enforces applies to them too. It only runs on an empty catalog: seeding twice would add
- * every movie and person again, since titles and names are not unique.
- */
+/** Adds the demo data through the API. Only runs on an empty catalog, since names are not unique. */
 export async function seedCatalog(
 	api: Api,
 	log: (line: string) => void,
-	people: SeedPerson[] = demoPeople,
-	movies: SeedMovie[] = demoMovies
+	{ people = demoPeople, movies = demoMovies, posters = sharedPoster }: SeedData = {}
 ): Promise<void> {
-	// Checked before anything is sent, so a mistake in the data never leaves a partial catalog.
+	// Check before sending anything, so bad data never leaves a partial catalog.
 	const listed = new Set(people.map((p) => p.name));
 	for (const movie of movies) {
 		for (const { name } of [...movie.cast, ...movie.creators]) {
@@ -63,8 +109,7 @@ export async function seedCatalog(
 		);
 	}
 
-	// Nothing is undone after a failure: a timed-out request may have been saved anyway, so the
-	// message says how far it got and how to start again instead.
+	// Nothing is undone on failure: a timed-out request may still have been saved.
 	const added = { people: 0, movies: 0 };
 	try {
 		const personIds = new Map<string, string>();
@@ -77,7 +122,7 @@ export async function seedCatalog(
 		}
 		log(`Added ${people.length} people.`);
 
-		// The movie list shows the newest first, so adding them last to first lists them as written.
+		// The list shows newest first, so add them in reverse.
 		for (const movie of [...movies].reverse()) {
 			const { createMovie } = await api.request<{ createMovie: { id: string; version: number } }>(
 				CREATE_MOVIE,
@@ -91,9 +136,7 @@ export async function seedCatalog(
 					}
 				}
 			);
-			if (movie.poster) {
-				await api.upload(createMovie.id, createMovie.version, POSTER, 'poster.png');
-			}
+			const artwork = movie.poster ? await addArtwork(api, movie, createMovie, posters) : '';
 
 			const credits = [
 				...movie.cast.map((c, i) => ({
@@ -114,14 +157,11 @@ export async function seedCatalog(
 				await api.request(ADD_CREDIT, { input: { movieId: createMovie.id, personId, ...credit } });
 			}
 			added.movies++;
-			log(
-				`Added ${movie.title}${movie.poster ? ' with artwork' : ''} and ${credits.length} credits.`
-			);
+			log(`Added ${movie.title}${artwork} and ${credits.length} credits.`);
 		}
 	} catch (error) {
-		// The server's messages end with a full stop; this one adds its own.
 		const reason = (error instanceof Error ? error.message : String(error)).replace(/\.$/, '');
-		// With nothing confirmed, the failed request may still have been saved.
+		// A failed request may still have been saved.
 		const state = added.people > 0 ? 'is now' : 'may now be';
 		throw new SeedError(
 			`Seeding stopped after adding ${added.people} people and ${added.movies} movies: ${reason}. ` +
@@ -132,16 +172,37 @@ export async function seedCatalog(
 }
 
 /**
- * The real API at `url`: JSON requests, and GraphQL multipart requests for artwork. Each request
- * gives up after `timeoutMs`, so a server that accepts a connection but never answers cannot
- * hang the seed; 30 seconds leaves room for an upload, which the gateway allows 60.
+ * Uploads the movie's artwork and says where it came from. A poster that can't be fetched, or
+ * that the server refuses, is replaced by the shared one. Other upload errors stop the seed,
+ * since the upload may still have been saved.
  */
+async function addArtwork(
+	api: Api,
+	movie: SeedMovie,
+	created: { id: string; version: number },
+	posters: PosterSource
+): Promise<string> {
+	if (posters === sharedPoster) {
+		await api.upload(created.id, created.version, SHARED_POSTER);
+		return ' with artwork';
+	}
+	try {
+		await api.upload(created.id, created.version, await posters(movie));
+		return ' with its TMDB poster';
+	} catch (error) {
+		if (error instanceof SeedError && error.code !== 'BAD_REQUEST') throw error;
+		await api.upload(created.id, created.version, SHARED_POSTER);
+		const reason = (error as Error).message.replace(/\.$/, '');
+		return ` with the shared poster (no TMDB poster: ${reason})`;
+	}
+}
+
+/** Each request times out, so a server that never answers cannot hang the seed. */
 export function graphQlApi(url: string, doFetch: typeof fetch = fetch, timeoutMs = 30_000): Api {
 	async function send<T>(init: RequestInit): Promise<T> {
 		let response: Response;
 		let text: string;
 		try {
-			// One signal for the whole exchange, so a body that stops arriving times out too.
 			response = await doFetch(url, {
 				method: 'POST',
 				...init,
@@ -166,7 +227,10 @@ export function graphQlApi(url: string, doFetch: typeof fetch = fetch, timeoutMs
 		}
 		const error = body.errors?.[0];
 		if (error) {
-			throw new SeedError(`${error.extensions?.code ?? 'ERROR'}: ${error.message ?? 'no message'}`);
+			throw new SeedError(
+				`${error.extensions?.code ?? 'ERROR'}: ${error.message ?? 'no message'}`,
+				error.extensions?.code
+			);
 		}
 		if (body.data == null)
 			throw new SeedError(`${url} answered HTTP ${response.status} with no data.`);
@@ -179,15 +243,18 @@ export function graphQlApi(url: string, doFetch: typeof fetch = fetch, timeoutMs
 				headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
 				body: JSON.stringify({ query, variables })
 			}),
-		async upload(movieId, version, png, fileName) {
-			// The GraphQL multipart request spec: operations, a map from file part to variable, the file.
+		async upload(movieId, version, artwork) {
 			const form = new FormData();
 			form.append(
 				'operations',
 				JSON.stringify({ query: UPLOAD_ARTWORK, variables: { movieId, version, file: null } })
 			);
 			form.append('map', JSON.stringify({ '0': ['variables.file'] }));
-			form.append('0', new Blob([new Uint8Array(png)], { type: 'image/png' }), fileName);
+			form.append(
+				'0',
+				new Blob([new Uint8Array(artwork.bytes)], { type: artwork.contentType }),
+				artwork.fileName
+			);
 			await send({ body: form });
 		}
 	};

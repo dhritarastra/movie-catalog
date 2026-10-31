@@ -1,14 +1,21 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { SeedMovie, SeedPerson } from './films.ts';
-import { graphQlApi, seedCatalog, SeedError, type Api } from './seed.ts';
+import {
+	graphQlApi,
+	seedCatalog,
+	SeedError,
+	tmdbPosters,
+	type Api,
+	type Artwork,
+	type PosterSource
+} from './seed.ts';
 
 interface Call {
 	operation: string;
 	variables?: Record<string, unknown>;
 }
 
-/** Stands in for the server: records each call and answers with made-up IDs and versions. */
 function fakeApi(counts = { movies: 0, people: 0 }) {
 	const calls: Call[] = [];
 	let next = 0;
@@ -16,7 +23,6 @@ function fakeApi(counts = { movies: 0, people: 0 }) {
 		async request<T>(query: string, variables?: Record<string, unknown>) {
 			const operation = /(?:query|mutation) (\w+)/.exec(query)![1];
 			calls.push({ operation, variables });
-			// Built on demand so each call takes exactly one new ID.
 			const answers: Record<string, () => unknown> = {
 				SeedCounts: () => ({
 					movies: { totalCount: counts.movies },
@@ -28,10 +34,10 @@ function fakeApi(counts = { movies: 0, people: 0 }) {
 			};
 			return answers[operation]() as T;
 		},
-		async upload(movieId, version, png, fileName) {
+		async upload(movieId, version, artwork) {
 			calls.push({
 				operation: 'upload',
-				variables: { movieId, version, bytes: png.length, fileName }
+				variables: { movieId, version, bytes: artwork.bytes.length, fileName: artwork.fileName }
 			});
 		}
 	};
@@ -44,6 +50,7 @@ const people: SeedPerson[] = [
 ];
 const movie: SeedMovie = {
 	title: 'Test Film',
+	tmdbId: 42,
 	synopsis: 'A test.',
 	releaseDate: '2020-01-01',
 	runtimeMinutes: 90,
@@ -65,7 +72,9 @@ describe('seedCatalog', () => {
 		async (counts) => {
 			const { api, calls } = fakeApi(counts);
 
-			await expect(seedCatalog(api, () => {}, people, [movie])).rejects.toThrow(SeedError);
+			await expect(seedCatalog(api, () => {}, { people, movies: [movie] })).rejects.toThrow(
+				SeedError
+			);
 			expect(calls.map((c) => c.operation)).toEqual(['SeedCounts']);
 		}
 	);
@@ -74,7 +83,7 @@ describe('seedCatalog', () => {
 		const { api, calls } = fakeApi();
 		const lines: string[] = [];
 
-		await seedCatalog(api, (line) => lines.push(line), people, [movie]);
+		await seedCatalog(api, (line) => lines.push(line), { people, movies: [movie] });
 
 		expect(calls.map((c) => c.operation)).toEqual([
 			'SeedCounts',
@@ -87,9 +96,8 @@ describe('seedCatalog', () => {
 			'SeedCredit',
 			'SeedCredit'
 		]);
-		// Missing optional fields are sent as null rather than left out.
 		expect(calls[2].variables).toEqual({ input: { name: 'Bo Actor', bio: null, birthDate: null } });
-		// The upload carries the version createMovie returned, or it would be a conflict.
+		// The upload must use the version createMovie returned.
 		expect(calls[4].variables).toMatchObject({
 			movieId: 'movie-3',
 			version: 7,
@@ -133,12 +141,10 @@ describe('seedCatalog', () => {
 		const { api, calls } = fakeApi();
 		const titles = ['First', 'Second', 'Third'];
 
-		await seedCatalog(
-			api,
-			() => {},
+		await seedCatalog(api, () => {}, {
 			people,
-			titles.map((title) => ({ ...movie, title }))
-		);
+			movies: titles.map((title) => ({ ...movie, title }))
+		});
 
 		const created = calls.filter((c) => c.operation === 'SeedMovie');
 		expect(created.map((c) => (c.variables?.input as { title: string }).title)).toEqual([
@@ -151,7 +157,7 @@ describe('seedCatalog', () => {
 	it('uploads nothing for a movie without a poster', async () => {
 		const { api, calls } = fakeApi();
 
-		await seedCatalog(api, () => {}, people, [{ ...movie, poster: false }]);
+		await seedCatalog(api, () => {}, { people, movies: [{ ...movie, poster: false }] });
 
 		expect(calls.map((c) => c.operation)).not.toContain('upload');
 	});
@@ -160,7 +166,7 @@ describe('seedCatalog', () => {
 		const { api, calls } = fakeApi();
 		const stranger = { ...movie, cast: [{ name: 'Nobody Listed', character: 'X' }] };
 
-		await expect(seedCatalog(api, () => {}, people, [stranger])).rejects.toThrow(
+		await expect(seedCatalog(api, () => {}, { people, movies: [stranger] })).rejects.toThrow(
 			'Test Film credits Nobody Listed, who is not in the list of people.'
 		);
 		expect(calls).toEqual([]);
@@ -180,12 +186,10 @@ describe('seedCatalog', () => {
 		};
 		const titles = ['First', 'Second', 'Third'];
 
-		const run = seedCatalog(
-			failing,
-			() => {},
+		const run = seedCatalog(failing, () => {}, {
 			people,
-			titles.map((title) => ({ ...movie, title }))
-		);
+			movies: titles.map((title) => ({ ...movie, title }))
+		});
 
 		await expect(run).rejects.toThrow(
 			'Seeding stopped after adding 2 people and 1 movies: SERVICE_UNAVAILABLE: catalog timed out. ' +
@@ -205,10 +209,114 @@ describe('seedCatalog', () => {
 			}
 		};
 
-		await expect(seedCatalog(failing, () => {}, people, [movie])).rejects.toThrow(
+		await expect(seedCatalog(failing, () => {}, { people, movies: [movie] })).rejects.toThrow(
 			'Seeding stopped after adding 0 people and 0 movies: http://x did not answer within 30 seconds. ' +
 				'The catalog may now be partly seeded'
 		);
+	});
+});
+
+describe('seedCatalog with real posters', () => {
+	const own: PosterSource = async (m) => ({
+		bytes: Buffer.from([1, 2, 3]),
+		fileName: `${m.tmdbId}.jpg`,
+		contentType: 'image/jpeg'
+	});
+	const uploads = (calls: Call[]) =>
+		calls.filter((c) => c.operation === 'upload').map((c) => c.variables?.fileName);
+
+	it("uploads each movie's own poster", async () => {
+		const { api, calls } = fakeApi();
+		const lines: string[] = [];
+
+		await seedCatalog(api, (line) => lines.push(line), { people, movies: [movie], posters: own });
+
+		expect(uploads(calls)).toEqual(['42.jpg']);
+		expect(lines).toContain('Added Test Film with its TMDB poster and 4 credits.');
+	});
+
+	it('uses the shared poster when the real one cannot be fetched', async () => {
+		const { api, calls } = fakeApi();
+		const lines: string[] = [];
+		const failing: PosterSource = async () => {
+			throw new Error('TMDB answered HTTP 404');
+		};
+
+		await seedCatalog(api, (line) => lines.push(line), {
+			people,
+			movies: [movie],
+			posters: failing
+		});
+
+		expect(uploads(calls)).toEqual(['poster.png']);
+		expect(lines).toContain(
+			'Added Test Film with the shared poster (no TMDB poster: TMDB answered HTTP 404) and 4 credits.'
+		);
+	});
+
+	it('uses the shared poster when the server refuses the real one', async () => {
+		const { api, calls } = fakeApi();
+		const refusing: Api = {
+			...api,
+			async upload(movieId, version, artwork) {
+				await api.upload(movieId, version, artwork);
+				if (artwork.fileName === '42.jpg') {
+					throw new SeedError('BAD_REQUEST: not an image.', 'BAD_REQUEST');
+				}
+			}
+		};
+
+		await seedCatalog(refusing, () => {}, { people, movies: [movie], posters: own });
+
+		expect(uploads(calls)).toEqual(['42.jpg', 'poster.png']);
+	});
+
+	it('stops when an upload times out, since it may have been saved', async () => {
+		const { api, calls } = fakeApi();
+		const timingOut: Api = {
+			...api,
+			async upload(movieId, version, artwork) {
+				await api.upload(movieId, version, artwork);
+				throw new SeedError('SERVICE_UNAVAILABLE: media timed out.', 'SERVICE_UNAVAILABLE');
+			}
+		};
+
+		await expect(
+			seedCatalog(timingOut, () => {}, { people, movies: [movie], posters: own })
+		).rejects.toThrow('Seeding stopped after adding 2 people and 0 movies');
+		expect(uploads(calls)).toEqual(['42.jpg']);
+	});
+});
+
+describe('tmdbPosters', () => {
+	it("fetches the film's details with the token, then its poster", async () => {
+		const requests: { url: string; auth?: string }[] = [];
+		const fakeFetch = (async (url: string, init: RequestInit) => {
+			requests.push({ url, auth: (init.headers as Record<string, string>).Authorization });
+			return url.includes('api.themoviedb.org')
+				? Response.json({ poster_path: '/abc.jpg' })
+				: new Response(new Uint8Array([9, 8, 7]), { headers: { 'content-type': 'image/jpeg' } });
+		}) as unknown as typeof fetch;
+
+		const artwork = await tmdbPosters('secret', fakeFetch)(movie);
+
+		expect(requests).toEqual([
+			{ url: 'https://api.themoviedb.org/3/movie/42', auth: 'Bearer secret' },
+			{ url: 'https://image.tmdb.org/t/p/w780/abc.jpg', auth: undefined }
+		]);
+		expect(artwork).toEqual({
+			bytes: Buffer.from([9, 8, 7]),
+			fileName: '42.jpg',
+			contentType: 'image/jpeg'
+		});
+	});
+
+	it('explains a refused token and a film without a poster', async () => {
+		const refused = (async () => new Response('', { status: 401 })) as unknown as typeof fetch;
+		const noPoster = (async () => Response.json({ poster_path: null })) as unknown as typeof fetch;
+
+		await expect(tmdbPosters('bad', refused)(movie)).rejects.toThrow('TMDB answered HTTP 401');
+		await expect(tmdbPosters('ok', noPoster)(movie)).rejects.toThrow('TMDB has no poster for it');
 	});
 });
 
@@ -221,6 +329,12 @@ describe('poster.png', () => {
 		);
 		expect(png.length).toBeLessThan(5 * 1024 * 1024);
 	});
+});
+
+const png = (bytes: Buffer): Artwork => ({
+	bytes,
+	fileName: 'poster.png',
+	contentType: 'image/png'
 });
 
 describe('graphQlApi', () => {
@@ -287,13 +401,12 @@ describe('graphQlApi', () => {
 			answering(200, '{"errors":[{"message":"not an image","extensions":{"code":"BAD_REQUEST"}}]}')
 		);
 
-		await expect(api.upload('movie-1', 1, Buffer.from([1]), 'poster.png')).rejects.toThrow(
+		await expect(api.upload('movie-1', 1, png(Buffer.from([1])))).rejects.toThrow(
 			'BAD_REQUEST: not an image'
 		);
 	});
 
 	it('gives up on a server that never answers', async () => {
-		// Accepts the request and never answers, until the request is aborted.
 		const silent = ((_url: string, init: RequestInit) =>
 			new Promise((_resolve, reject) =>
 				init.signal!.addEventListener('abort', () => reject(init.signal!.reason))
@@ -311,7 +424,7 @@ describe('graphQlApi', () => {
 			return new Response('{"data":{"uploadArtwork":{"version":2}}}');
 		}) as unknown as typeof fetch;
 
-		await graphQlApi(url, capture).upload('movie-1', 1, Buffer.from([1, 2, 3]), 'poster.png');
+		await graphQlApi(url, capture).upload('movie-1', 1, png(Buffer.from([1, 2, 3])));
 
 		const form = sent!.body as FormData;
 		expect(JSON.parse(form.get('operations') as string).variables).toEqual({
