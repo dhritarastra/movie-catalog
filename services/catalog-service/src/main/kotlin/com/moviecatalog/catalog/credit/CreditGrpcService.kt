@@ -17,7 +17,6 @@ import java.util.UUID
 import com.moviecatalog.catalog.v1.Credit as CreditProto
 import com.moviecatalog.catalog.v1.CreditType as CreditTypeProto
 
-/** gRPC endpoint for credits, shaped like MovieGrpcService. */
 @Service
 class CreditGrpcService(private val credits: CreditService) : CreditServiceGrpc.CreditServiceImplBase() {
     override fun addCredit(request: AddCreditRequest, responseObserver: StreamObserver<CreditProto>) =
@@ -61,7 +60,7 @@ class CreditGrpcService(private val credits: CreditService) : CreditServiceGrpc.
         responseObserver.complete(byKey(ids, credits.byPersonIds(ids)))
     }
 
-    /** Every requested ID gets an entry, empty when it has no credits, as the contract promises. */
+    /** Every requested ID gets an entry, empty if it has no credits. */
     private fun byKey(ids: List<UUID>, found: Map<UUID, List<Credit>>): CreditsByKeyResponse =
         CreditsByKeyResponse.newBuilder()
             .putAllCredits(
@@ -72,7 +71,7 @@ class CreditGrpcService(private val credits: CreditService) : CreditServiceGrpc.
             .build()
 }
 
-/** CREDIT_TYPE_UNSPECIFIED (an omitted role) and unknown numbers become null, which validation rejects. */
+/** Unspecified or unknown roles become null, which validation rejects. */
 private fun CreditTypeProto.toDomain(): CreditType? =
     when (this) {
         CreditTypeProto.CREDIT_TYPE_CAST -> CreditType.CAST

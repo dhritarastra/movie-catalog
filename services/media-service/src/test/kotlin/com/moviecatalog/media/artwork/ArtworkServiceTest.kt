@@ -16,7 +16,6 @@ import java.util.Optional
 import java.util.UUID
 import javax.imageio.ImageIO
 
-/** The store, open and delete rules with the repository mocked and real files in a temporary folder. */
 class ArtworkServiceTest {
     @TempDir
     lateinit var dir: Path

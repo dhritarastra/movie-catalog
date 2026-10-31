@@ -8,13 +8,7 @@ import org.springframework.graphql.data.method.annotation.BatchMapping
 import org.springframework.graphql.data.method.annotation.MutationMapping
 import org.springframework.stereotype.Controller
 
-/**
- * Credits link people to movies. They are last-write-wins: no version, and an update replaces
- * the role, character and billing order as sent.
- *
- * Each nested field is a batch mapping: for a list of 20 movies, `cast` makes one catalog call
- * for all 20, not 20 calls. The lists come back in billing order.
- */
+/** Nested credit fields are batch mappings: one catalog call per field for a whole page. */
 @Controller
 class CreditController(private val catalog: CatalogClient) {
     @MutationMapping
@@ -25,13 +19,10 @@ class CreditController(private val catalog: CatalogClient) {
     fun updateCredit(@Argument id: String, @Argument input: UpdateCreditInput): CreditView =
         CreditView.of(catalog.updateCredit(id, input.type, input.characterName, input.billingOrder))
 
-    /** Removes the credit only; the person and the movie stay. */
     @MutationMapping
     fun removeCredit(@Argument id: String): String = catalog.removeCredit(id)
 
-    // cast and creators each make one call when both are asked for: two calls per request, never
-    // one per movie. Sharing a single load between the two fields would need a DataLoader, which
-    // is more to explain than it saves.
+    // cast and creators each make one call. Sharing one load would need a DataLoader.
     @BatchMapping(typeName = "Movie", field = "cast")
     fun cast(movies: List<MovieView>): Map<MovieView, List<CreditView>> = creditsOf(movies) { it.type == CreditType.CAST }
 
@@ -44,11 +35,7 @@ class CreditController(private val catalog: CatalogClient) {
         return people.associateWith { person -> byPerson[person.id].orEmpty().map(CreditView::of) }
     }
 
-    /**
-     * The catalog's foreign keys keep a credit's movie and person in existence, but one can be
-     * deleted between loading the credits and loading it. It is then null, as the schema allows,
-     * so the rest of the response still arrives.
-     */
+    /** Null if the movie was deleted after the credits were loaded, so the rest of the response still works. */
     @BatchMapping(typeName = "Credit", field = "movie")
     fun movie(credits: List<CreditView>): Map<CreditView, MovieView> {
         val movies = catalog.moviesByIds(credits.map { it.movieId }.distinct())

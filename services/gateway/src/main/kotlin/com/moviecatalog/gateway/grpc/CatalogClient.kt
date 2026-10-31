@@ -42,10 +42,7 @@ import org.springframework.stereotype.Component
 import java.util.concurrent.TimeUnit
 import com.moviecatalog.catalog.v1.CreditType as CreditTypeProto
 
-/**
- * The catalog calls the gateway makes, each with a deadline. Failures surface as
- * StatusRuntimeException and are turned into GraphQL errors by GrpcErrorResolver.
- */
+/** Catalog calls, each with a deadline. */
 @Component
 class CatalogClient(
     private val movies: MovieServiceGrpc.MovieServiceBlockingStub,
@@ -103,11 +100,11 @@ class CatalogClient(
     fun deletePerson(id: String, expectedVersion: Int): String =
         people.withDeadline().deletePerson(DeletePersonRequest.newBuilder().setId(id).setExpectedVersion(expectedVersion).build()).id
 
-    /** Keyed by movie ID; IDs that do not exist are absent. */
+    /** Unknown IDs are left out. */
     fun moviesByIds(ids: List<String>): Map<String, Movie> =
         movies.withDeadline().getMoviesByIds(GetMoviesByIdsRequest.newBuilder().addAllIds(ids).build()).moviesMap
 
-    /** Keyed by person ID; IDs that do not exist are absent. */
+    /** Unknown IDs are left out. */
     fun peopleByIds(ids: List<String>): Map<String, Person> =
         people.withDeadline().getPeopleByIds(GetPeopleByIdsRequest.newBuilder().addAllIds(ids).build()).peopleMap
 
@@ -134,17 +131,16 @@ class CatalogClient(
 
     fun removeCredit(id: String): String = credits.withDeadline().removeCredit(RemoveCreditRequest.newBuilder().setId(id).build()).id
 
-    /** Keyed by movie ID, in billing order; every requested ID has an entry, possibly empty. */
+    /** Every requested ID has an entry, possibly empty. */
     fun creditsByMovieIds(movieIds: List<String>): Map<String, List<Credit>> =
         credits.withDeadline().getCreditsByMovieIds(GetCreditsByMovieIdsRequest.newBuilder().addAllMovieIds(movieIds).build())
             .creditsMap.mapValues { it.value.creditsList }
 
-    /** Keyed by person ID, in billing order; every requested ID has an entry, possibly empty. */
+    /** Every requested ID has an entry, possibly empty. */
     fun creditsByPersonIds(personIds: List<String>): Map<String, List<Credit>> =
         credits.withDeadline().getCreditsByPersonIds(GetCreditsByPersonIdsRequest.newBuilder().addAllPersonIds(personIds).build())
             .creditsMap.mapValues { it.value.creditsList }
 
-    /** Movies and people matching [query], best match first. */
     fun search(query: String, limit: Int): List<SearchHit> =
         searches.withDeadline().search(SearchRequest.newBuilder().setQuery(query).setLimit(limit).build()).hitsList
 

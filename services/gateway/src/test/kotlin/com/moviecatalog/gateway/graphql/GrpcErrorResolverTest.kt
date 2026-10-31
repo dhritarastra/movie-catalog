@@ -16,7 +16,6 @@ import org.springframework.graphql.ExecutionGraphQlService
 import org.springframework.graphql.test.tester.ExecutionGraphQlServiceTester
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
-/** The mapping from gRPC failures to GraphQL error codes and field errors, with the catalog mocked. */
 @SpringBootTest
 class GrpcErrorResolverTest(
     @Autowired graphQlService: ExecutionGraphQlService,

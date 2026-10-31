@@ -5,12 +5,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.graphql.execution.RuntimeWiringConfigurer
 
-/**
- * The `Upload` scalar from the GraphQL multipart request spec. The multipart adapter places
- * each uploaded file into the operation's variables, so the only valid input is a
- * [MultipartFile] supplied as a variable. Uploads are input-only and cannot be written inline
- * in a query, so serializing or parsing a literal is an error.
- */
+/** The `Upload` scalar from the multipart spec. Files can only be passed as variables. */
 @Configuration
 class UploadScalarConfiguration {
     @Bean

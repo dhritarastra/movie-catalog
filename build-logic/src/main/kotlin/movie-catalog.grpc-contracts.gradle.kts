@@ -1,5 +1,4 @@
-// Generates Java message classes and gRPC stubs from the module's .proto files, with protoc and
-// the gRPC plugin pinned to the versions Spring Boot manages for the runtime libraries.
+// Generates Java messages and gRPC stubs from the .proto files.
 plugins {
     `java-library`
     id("com.google.protobuf")

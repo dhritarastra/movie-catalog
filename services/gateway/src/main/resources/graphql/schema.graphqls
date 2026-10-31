@@ -1,6 +1,4 @@
-# The contract between the web app and the gateway.
-# Calendar dates are ISO-8601 strings (yyyy-MM-dd); timestamps are ISO-8601 instants.
-# Updates replace every editable field; `version` guards against overwriting a newer edit.
+# Dates are yyyy-MM-dd strings. Updates replace every field; `version` guards against lost updates.
 
 scalar Upload
 
@@ -18,7 +16,6 @@ type Query {
 }
 
 type Mutation {
-  # Create and update share one input type; update replaces all editable fields.
   createMovie(input: MovieInput!): Movie!
   updateMovie(id: ID!, version: Int!, input: MovieInput!): Movie!
   deleteMovie(id: ID!, version: Int!): ID!

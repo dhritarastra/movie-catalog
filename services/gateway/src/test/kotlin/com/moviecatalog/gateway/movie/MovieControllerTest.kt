@@ -19,7 +19,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.graphql.ExecutionGraphQlService
 import org.springframework.graphql.test.tester.ExecutionGraphQlServiceTester
 
-/** The movie queries and mutations with the catalog and media mocked: argument mapping, nulls and file clean-up. */
 @SpringBootTest
 class MovieControllerTest(
     @Autowired graphQlService: ExecutionGraphQlService,

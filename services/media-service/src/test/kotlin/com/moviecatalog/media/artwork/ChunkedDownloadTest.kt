@@ -11,7 +11,6 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.io.InputStream
 
-/** Flow control for downloads, driven by hand: the test decides when the "client" is ready. */
 class ChunkedDownloadTest {
     private val metadata = DownloadArtworkResponse.newBuilder().setMetadata(DownloadMetadata.newBuilder().setSizeBytes(10)).build()
 
@@ -92,7 +91,7 @@ class ChunkedDownloadTest {
         }
     }
 
-    /** Ready while the "client" still has room for messages, the way gRPC flow control behaves. */
+    /** Ready while the "client" still has room, like gRPC flow control. */
     private class FakeCall : ServerCallStreamObserver<DownloadArtworkResponse>() {
         val sent = mutableListOf<DownloadArtworkResponse>()
         var completed = false

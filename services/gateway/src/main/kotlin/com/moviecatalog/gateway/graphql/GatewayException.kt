@@ -1,6 +1,6 @@
 package com.moviecatalog.gateway.graphql
 
-/** A failure detected in the gateway itself, before or instead of calling another service. */
+/** An error found by the gateway itself, without calling another service. */
 class GatewayException(
     val code: ErrorCode,
     message: String,

@@ -16,7 +16,6 @@ import org.springframework.jdbc.core.simple.JdbcClient
 import java.time.LocalDate
 import java.util.UUID
 
-/** The entity mapping against the real schema: Flyway's migration, Postgres types and constraints. */
 @DataJpaTest
 @Import(TestcontainersConfiguration::class)
 class MovieRepositoryTest(
@@ -73,7 +72,7 @@ class MovieRepositoryTest(
     fun `a write based on an old read fails instead of overwriting the newer row`() {
         val saved = repository.saveAndFlush(Movie("Arrival", null, null, null, emptyList()))
         entityManager.detach(saved)
-        // Someone else's change, committed after this copy was read.
+        // Someone else saves a change.
         jdbc.sql("UPDATE movie SET title = 'Theirs', version = version + 1 WHERE id = ?").param(saved.id).update()
 
         saved.title = "Mine"
@@ -94,8 +93,7 @@ class MovieRepositoryTest(
     fun `pages newest first, with the id breaking ties, from any offset`() {
         val ids = (1..3).map { repository.save(Movie("Movie $it", null, null, null, emptyList())).id!! }
         repository.flush()
-        // Same creation time for all three, so only the id can order them. Postgres orders uuids
-        // byte by byte, as their canonical strings sort; UUID.compareTo compares signed longs.
+        // Same creation time, so only the id decides the order.
         jdbc.sql("UPDATE movie SET created_at = '2026-01-01T00:00:00Z'").update()
         entityManager.clear()
         val newestFirst = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))

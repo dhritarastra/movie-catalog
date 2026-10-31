@@ -10,11 +10,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.grpc.client.GrpcChannelFactory
 
-/**
- * Stubs for the downstream services, configured under spring.grpc.client.channel.<name>.
- * The factory opens a new channel on every createChannel call, so each service gets one
- * channel here, shared by all of its stubs. The factory shuts the channels down on exit.
- */
+/** The channel factory opens a new channel on every call, so each service gets one shared channel. */
 @Configuration
 class GrpcClientConfiguration(channels: GrpcChannelFactory) {
     private val catalog: ManagedChannel = channels.createChannel("catalog")

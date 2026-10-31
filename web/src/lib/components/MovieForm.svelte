@@ -17,27 +17,23 @@
 	}
 
 	interface Props {
-		/** Starting values: empty when adding, the stored movie when editing. */
 		initial?: MovieFormValues;
 		submitLabel: string;
 		cancelHref: ResolvedPathname;
-		/** Saves the input; a rejection is shown as field errors or a message. */
 		onSubmit(input: MovieInput): Promise<void>;
-		/** Offered after a conflict, so the user can load the latest version (losing these edits). */
 		onReload?(): void;
 	}
 
 	let { initial, submitLabel, cancelHref, onSubmit, onReload }: Props = $props();
 
-	// The input ids, which are also the field names in the gateway's errors.
+	// Also the field names used in server errors.
 	const FIELDS = ['title', 'releaseDate', 'runtimeMinutes', 'genres', 'synopsis'];
 
-	// Copied once, deliberately: the form owns its values after it is created, so a parent
-	// re-render cannot wipe what the user typed. Edit pages remount it to reset.
+	// Copied once, so a parent re-render cannot wipe what the user typed.
 	const start = untrack(() => initial);
 	let title = $state(start?.title ?? '');
 	let releaseDate = $state(start?.releaseDate ?? '');
-	// A number input binds as a number, or null/undefined when empty; 0 is a value, not "empty".
+	// Empty is null or undefined; 0 is a real value.
 	let runtime = $state<number | null | undefined>(start?.runtimeMinutes ?? null);
 	let genres = $state(start?.genres.join(', ') ?? '');
 	let synopsis = $state(start?.synopsis ?? '');
@@ -49,7 +45,7 @@
 	let form: HTMLFormElement | undefined = $state();
 	const visit = trackVisit();
 
-	/** Mirrors the catalog's rules for instant feedback; the catalog still has the final say. */
+	/** Quick checks in the browser; the server has the final say. */
 	function validate(): Record<string, string> {
 		const found: Record<string, string> = {};
 		if (!title.trim()) found.title = 'Enter a title.';
@@ -71,13 +67,11 @@
 			form?.querySelector<HTMLElement>(`#${Object.keys(errors)[0]}`)?.focus();
 			return;
 		}
-		// The fields are locked until the save finishes, so what was sent is what the user sees.
 		saving = true;
 		const stillHere = visit.mark();
 		const subject = title.trim();
 		let failure: SaveFailure | null = null;
 		try {
-			// Every editable field is sent: updates replace the whole record.
 			await onSubmit({
 				title,
 				releaseDate: releaseDate || null,
@@ -101,7 +95,7 @@
 		if (failure && stillHere()) await showFailure(failure, stillHere);
 	}
 
-	/** Locking the fields took focus off the form, so focus goes back to what needs attention. */
+	/** The locked fields lost focus, so move it to the problem. */
 	async function showFailure(failure: SaveFailure, stillHere: () => boolean) {
 		if (failure.kind === 'fields') errors = failure.errors;
 		else formError = failure;

@@ -38,7 +38,6 @@
 
 	const visit = trackVisit();
 
-	/** Saves against the version that was loaded; like the movie edit page, never pulls a user back who left. */
 	async function save(person: PersonDetailFieldsFragment, input: PersonInput) {
 		const stillHere = visit.mark();
 		await request(UpdatePersonMutation, { id: person.id, version: person.version, input });
@@ -74,7 +73,7 @@
 {:else}
 	{@const person = view.person}
 	<h1>Edit {person.name}</h1>
-	<!-- Keyed on the version, so reloading after a conflict resets the form to the latest values. -->
+	<!-- Remounts the form with the latest values after a reload. -->
 	{#key person.version}
 		<PersonForm
 			initial={person}

@@ -8,11 +8,8 @@ import java.util.UUID
 
 interface ArtworkRepository : JpaRepository<Artwork, UUID> {
     /**
-     * Deletes the row if there is one and returns how many were deleted (0 or 1), so a repeated
-     * delete can report that nothing existed. One DELETE statement, run at once: a delete derived
-     * from the method name would read the row first and fail at commit if another delete removed
-     * it in between. Its own write transaction commits before the caller removes the files, so a
-     * row never outlives its files.
+     * A single DELETE that returns how many rows went (0 or 1). A derived delete would read the
+     * row first and fail if another delete removed it in between.
      */
     @Transactional
     @Modifying

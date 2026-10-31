@@ -9,14 +9,13 @@ option java_multiple_files = true;
 option java_package = "com.moviecatalog.catalog.v1";
 
 service SearchService {
-  // Case-insensitive literal substring match on movie titles and person names: case is ignored
-  // for every letter ("ZOË" finds "Zoë"), accents are not, and %, _ and \ match themselves.
+  // Case-insensitive substring match on titles and names. % and _ match literally.
   rpc Search(SearchRequest) returns (SearchResponse);
 }
 
 message SearchRequest {
-  string query = 1; // trimmed; blank or longer than 200 characters is INVALID_ARGUMENT
-  int32 limit = 2;  // 1 to catalog.search.max-limit; anything else is INVALID_ARGUMENT, never cut down
+  string query = 1;
+  int32 limit = 2;
 }
 
 message SearchHit {
@@ -26,8 +25,7 @@ message SearchHit {
   }
 }
 
-// Deterministic order: best match first (the whole title or name, then one that starts with the
-// query, then one that contains it), then by title or name, then movies before people, then ID.
+// Best match first: exact, then prefix, then anywhere; ties by text, movies first, then id.
 message SearchResponse {
   repeated SearchHit hits = 1;
 }

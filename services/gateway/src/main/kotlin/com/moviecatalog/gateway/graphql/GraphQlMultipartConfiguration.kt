@@ -11,9 +11,8 @@ import org.springframework.web.servlet.function.RouterFunctions
 import org.springframework.web.servlet.function.ServerResponse
 
 /**
- * Routes multipart POSTs to /graphql to [GraphQlMultipartHandler]. Spring for GraphQL serves the
- * same path with its own router function, which answers any non-JSON body with 415, so this route
- * is ordered ahead of it and matches only multipart/form-data. JSON requests still go to Spring's.
+ * Spring for GraphQL answers non-JSON requests to /graphql with 415, so this multipart route
+ * is ordered ahead of it.
  */
 @Configuration
 class GraphQlMultipartConfiguration {

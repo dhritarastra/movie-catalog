@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDate
 import java.util.UUID
 
-/** People follow the movie rules: full-replacement updates and deletes guarded by the version. */
 @Service
 @Transactional(readOnly = true)
 class PersonService(
@@ -33,17 +32,12 @@ class PersonService(
 
     fun get(id: UUID): Person = repository.findByIdOrNull(id) ?: throw notFound(id)
 
-    /** The people who exist among [ids]; unknown IDs are left out. */
     fun getAll(ids: Collection<UUID>): List<Person> = repository.findAllById(ids)
 
-    /**
-     * Alphabetical through the name column's ICU collation (case and accents break letter ties)
-     * (V2__create_person.sql). The id tie-breaker keeps people with the same name in a stable order.
-     * A non-blank [nameContains] keeps only people whose name contains it, ignoring case.
-     */
+    /** Sorted by name (ICU collation), then id so pages stay stable. */
     fun list(offset: Int, limit: Int, nameContains: String = ""): Page<Person> {
         val name = nameContains.trim()
-        // A filter longer than the longest possible name could never match.
+        // Longer than any name, so nothing can match.
         if (name.length > PersonInput.NAME_MAX) {
             throw InvalidArgumentException(listOf(FieldViolation("name_contains", "must be at most ${PersonInput.NAME_MAX} characters")))
         }
@@ -62,24 +56,19 @@ class PersonService(
         return repository.saveAndFlush(person)
     }
 
-    /**
-     * Deletes the person if they are still at [expectedVersion] and have no credits. The
-     * database's foreign key from credit to person refuses the delete while any credit exists,
-     * so a credit added at the same moment is caught too.
-     */
+    /** The credit foreign key blocks this while the person has credits, including new ones. */
     @Transactional
     fun delete(id: UUID, expectedVersion: Int) {
         repository.delete(current(id, expectedVersion))
         try {
             repository.flush()
         } catch (e: DataIntegrityViolationException) {
-            // Only the credit foreign key means "still credited"; anything else is reported as it is.
+            // Only the credit foreign key means the person is still credited.
             if ((e.cause as? ConstraintViolationException)?.constraintName != "credit_person_id_fkey") throw e
             throw FailedPreconditionException("This person is credited on a movie. Remove their credits first, then delete them.")
         }
     }
 
-    /** The person the caller wants to change, if they saw the current version; see MovieService. */
     private fun current(id: UUID, expectedVersion: Int): Person {
         val person = repository.findByIdOrNull(id) ?: throw notFound(id)
         if (person.version != expectedVersion) {

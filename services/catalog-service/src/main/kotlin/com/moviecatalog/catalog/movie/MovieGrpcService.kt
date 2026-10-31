@@ -21,11 +21,6 @@ import io.grpc.stub.StreamObserver
 import org.springframework.stereotype.Service
 import com.moviecatalog.catalog.v1.Movie as MovieProto
 
-/**
- * gRPC endpoint for movies: translates between protobuf messages and the domain, and leaves
- * business rules to [MovieService]. Exceptions are mapped to statuses by
- * CatalogGrpcExceptionHandler. Methods not overridden yet return UNIMPLEMENTED.
- */
 @Service
 class MovieGrpcService(private val movies: MovieService) : MovieServiceGrpc.MovieServiceImplBase() {
     override fun createMovie(request: CreateMovieRequest, responseObserver: StreamObserver<MovieProto>) =
@@ -34,7 +29,6 @@ class MovieGrpcService(private val movies: MovieService) : MovieServiceGrpc.Movi
     override fun getMovie(request: GetMovieRequest, responseObserver: StreamObserver<MovieProto>) =
         responseObserver.complete(movies.get(RequestArguments.uuid("id", request.id)).toProto())
 
-    /** Backs the gateway's batch lookups; IDs that do not exist are absent from the map. */
     override fun getMoviesByIds(request: GetMoviesByIdsRequest, responseObserver: StreamObserver<GetMoviesByIdsResponse>) {
         val ids = request.idsList.map { RequestArguments.uuid("ids", it) }
         responseObserver.complete(
@@ -90,8 +84,7 @@ class MovieGrpcService(private val movies: MovieService) : MovieServiceGrpc.Movi
         )
 }
 
-// Inside the builder's apply, a bare `previousArtworkId` would be the builder's own field (""),
-// so the receiver is named explicitly.
+// Inside apply, a bare previousArtworkId would be the builder's own field.
 private fun ArtworkChange.toProto(): ArtworkChangeResponse =
     ArtworkChangeResponse.newBuilder()
         .setMovie(movie.toProto())
@@ -107,7 +100,6 @@ private fun MovieFields.toInput() =
         genres = genresList,
     )
 
-/** Also used by SearchGrpcService, so a movie looks the same in every response. */
 internal fun Movie.toProto(): MovieProto =
     MovieProto.newBuilder()
         .setId(requireNotNull(id) { "a saved movie has an id" }.toString())

@@ -22,7 +22,6 @@ import java.util.HexFormat
 import java.util.UUID
 import com.moviecatalog.media.v1.Artwork as ArtworkProto
 
-/** The streaming protocol on its own: ordering rules, the size limit and clean-up, with storage mocked out. */
 class UploadSessionTest {
     @TempDir
     lateinit var dir: Path

@@ -59,7 +59,6 @@ class SearchServiceTest {
         every { movies.findAllById(any()) } returns emptyList()
         every { people.findAllById(any()) } returns emptyList()
         service.search("x".repeat(200), 10)
-        // Non-ASCII letters count one each, as they do for titles and names.
         service.search("é".repeat(200), 10)
 
         val error = assertThrows<InvalidArgumentException> { service.search("x".repeat(201), 10) }
@@ -89,7 +88,7 @@ class SearchServiceTest {
         assertThat(error.violations.map { it.field }).containsExactly("query", "limit")
     }
 
-    // Saved entities get their ID from the database, so these stand-ins provide one.
+    // Saved entities get their id from the database, so set one here.
     private fun movie(): Pair<UUID, Movie> {
         val id = UUID.randomUUID()
         return id to mockk<Movie> { every { this@mockk.id } returns id }

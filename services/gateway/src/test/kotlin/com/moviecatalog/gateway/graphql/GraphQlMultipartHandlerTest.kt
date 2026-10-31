@@ -20,7 +20,6 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
 
-/** Multipart routing and parsing over HTTP, with the artwork upload mocked out. */
 @SpringBootTest
 class GraphQlMultipartHandlerTest(
     @Autowired context: WebApplicationContext,

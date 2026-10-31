@@ -19,7 +19,6 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
 
-/** Image downloads over HTTP with media mocked: streaming, cache headers and error statuses. */
 @SpringBootTest
 class MediaControllerTest(
     @Autowired context: WebApplicationContext,

@@ -32,7 +32,6 @@
 
 	let { movieId }: Props = $props();
 
-	/** A credit whose person was found; see `resolved`. */
 	type Credit = CreditFieldsFragment & { person: NonNullable<CreditFieldsFragment['person']> };
 
 	type View =
@@ -58,10 +57,8 @@
 		return () => controller.abort();
 	});
 
-	/** Replaces the lists once they arrive; the old ones stay on screen meanwhile. */
 	async function load(id: string, signal?: AbortSignal) {
 		const data = await request(MovieCreditsQuery, { id }, { signal });
-		// A movie deleted meanwhile has no credits; the page above reports it as not found.
 		view = {
 			status: 'ready',
 			cast: resolved(data.movie?.cast ?? [], 'person'),
@@ -69,7 +66,6 @@
 		};
 	}
 
-	/** After a change, the lists are reloaded so billing order and other people's changes show. */
 	async function refresh(stillHere: () => boolean) {
 		if (!stillHere()) return;
 		try {
@@ -80,11 +76,11 @@
 		}
 	}
 
-	// One form at a time: adding a credit, or editing one. The list's own buttons wait meanwhile.
+	// One form at a time.
 	let editing = $state<{ mode: 'add' } | { mode: 'edit'; credit: Credit } | null>(null);
 	let addButton: HTMLButtonElement | undefined = $state();
 
-	/** Focus goes back to "Add credit": the form, or the row it edited, may no longer exist. */
+	/** The form or the edited row may be gone, so focus "Add credit". */
 	async function closeForm() {
 		editing = null;
 		await tick();
@@ -110,7 +106,6 @@
 			await request(UpdateCreditMutation, { id: credit.id, input: creditFields(values) });
 		} catch (error) {
 			if (!(error instanceof GraphQlRequestError && error.code === 'NOT_FOUND')) throw error;
-			// Someone else removed it: nothing to save, so explain and show the latest list.
 			showToast('error', `${credit.person.name}'s credit had already been removed.`);
 			await refresh(stillHere);
 			if (stillHere()) await closeForm();
@@ -125,7 +120,6 @@
 	let busy = $state(false);
 	let removeError = $state<string | null>(null);
 
-	/** Removes the credit only: the person stays in the catalog. */
 	async function remove(credit: Credit) {
 		const stillHere = visit.mark();
 		busy = true;
@@ -135,11 +129,9 @@
 			showToast('success', `${credit.person.name} was removed from this movie.`);
 			if (stillHere()) removing = null;
 			await refresh(stillHere);
-			// The dialog gave focus back to the removed row's button, which is gone now.
 			if (stillHere()) await closeForm();
 		} catch (error) {
 			if (error instanceof GraphQlRequestError && error.code === 'NOT_FOUND') {
-				// Someone else removed it first: the outcome the user wanted, so just show the latest list.
 				showToast('success', `${credit.person.name} had already been removed from this movie.`);
 				if (stillHere()) removing = null;
 				await refresh(stillHere);
@@ -316,7 +308,6 @@
 		gap: 1rem;
 	}
 
-	/* Link buttons are red for destructive actions; editing is not one. */
 	.credits .edit {
 		color: var(--accent);
 	}

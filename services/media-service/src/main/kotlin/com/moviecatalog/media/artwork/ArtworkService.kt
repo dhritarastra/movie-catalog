@@ -17,18 +17,14 @@ class ArtworkService(
     private val log = LoggerFactory.getLogger(javaClass)
     private val inspector = ImageInspector(properties.maxWidth, properties.maxHeight)
 
-    /**
-     * Validates a fully received upload and stores it. Files are moved into place before the row is
-     * written, so a row never points at missing files; if the insert fails the files are removed.
-     * The temporary upload is always deleted.
-     */
+    /** Files are moved into place before the row is written, so a row never points at missing files. */
     fun store(upload: Path, sizeBytes: Long, sha256: String): Artwork {
         try {
             val inspected = inspector.inspect(upload)
             val id = UUID.randomUUID()
             storage.store(id, upload, ImageInspector.thumbnail(inspected, properties.thumbnailWidth), inspected.format)
             try {
-                // save() merges because the id is assigned, so Hibernate first checks that no such row exists.
+                // The id is assigned, so save() merges and checks for an existing row first.
                 return repository.save(Artwork(id, inspected.format, sizeBytes, inspected.image.width, inspected.image.height, sha256))
             } catch (e: RuntimeException) {
                 storage.delete(id)
@@ -49,7 +45,7 @@ class ArtworkService(
         return StoredFile(artwork, path, Files.size(path))
     }
 
-    /** Safe to repeat: deleting missing artwork succeeds and reports that nothing existed. */
+    /** Safe to repeat: deleting missing artwork returns false. */
     fun delete(id: UUID): Boolean {
         val existed = repository.removeById(id) > 0
         storage.delete(id)

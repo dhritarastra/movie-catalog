@@ -1,7 +1,6 @@
 import type { CodegenConfig } from '@graphql-codegen/cli';
 
-// Generates TypeScript types for every operation in src/lib/graphql/operations.ts from the
-// gateway's checked-in schema, so a schema change that breaks the web app fails `npm run check`.
+// Generates types for the operations in operations.ts from the gateway schema.
 const config: CodegenConfig = {
 	schema: '../services/gateway/src/main/resources/graphql/schema.graphqls',
 	documents: ['src/lib/graphql/operations.ts'],
@@ -10,7 +9,7 @@ const config: CodegenConfig = {
 			preset: 'client',
 			presetConfig: { fragmentMasking: false },
 			config: {
-				// Operations become typed strings, so the app needs no GraphQL runtime library.
+				// Typed strings, so no GraphQL client library is needed.
 				documentMode: 'string',
 				useTypeImports: true,
 				enumsAsTypes: true,

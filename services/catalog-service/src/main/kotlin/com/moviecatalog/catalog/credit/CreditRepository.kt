@@ -12,10 +12,7 @@ interface CreditRepository : JpaRepository<Credit, UUID> {
 
     fun findAllByPersonIdIn(personIds: Collection<UUID>, sort: Sort): List<Credit>
 
-    /**
-     * Deletes the credit if there is one and returns how many were deleted (0 or 1). One DELETE
-     * statement, so two removes of the same credit cannot both find it and then race.
-     */
+    /** One DELETE statement, so two removes of the same credit cannot both succeed. */
     @Transactional
     @Modifying
     @Query("delete from Credit c where c.id = :id")

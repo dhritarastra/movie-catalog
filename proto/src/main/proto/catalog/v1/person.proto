@@ -8,20 +8,17 @@ import "google/protobuf/timestamp.proto";
 option java_multiple_files = true;
 option java_package = "com.moviecatalog.catalog.v1";
 
-// A cast member or creator. Roles live on Credit, so one person can be both.
-// Versions follow the same rules as Movie: they start at 1, and any expected_version
-// below 1 is INVALID_ARGUMENT.
+// Roles live on Credit, so one person can be both cast and crew.
 message Person {
   string id = 1;
   string name = 2;
   optional string bio = 3;
   optional string birth_date = 4;
-  int32 version = 5; // starts at 1; increases by one on every change
+  int32 version = 5;
   google.protobuf.Timestamp created_at = 6;
   google.protobuf.Timestamp updated_at = 7;
 }
 
-// Editable fields. Update replaces every editable field with them.
 message PersonFields {
   string name = 1;
   optional string bio = 2;
@@ -34,7 +31,7 @@ service PersonService {
   rpc GetPeopleByIds(GetPeopleByIdsRequest) returns (GetPeopleByIdsResponse);
   rpc ListPeople(ListPeopleRequest) returns (ListPeopleResponse);
   rpc UpdatePerson(UpdatePersonRequest) returns (Person);
-  // Fails with FAILED_PRECONDITION while the person still has credits.
+  // FAILED_PRECONDITION while the person has credits.
   rpc DeletePerson(DeletePersonRequest) returns (DeletePersonResponse);
 }
 
@@ -50,16 +47,14 @@ message GetPeopleByIdsRequest {
   repeated string ids = 1;
 }
 
-// Keyed by person ID. IDs that do not exist are absent from the map.
+// Unknown IDs are left out.
 message GetPeopleByIdsResponse {
   map<string, Person> people = 1;
 }
 
 message ListPeopleRequest {
   PageRequest page = 1;
-  // Only people whose name contains this text, ignoring case (non-ASCII letters too, so "ZOË"
-  // finds "Zoë") but not accents ("zoe" does not find "Zoë"); blank lists everyone. At most 200
-  // characters. %, _ and \ are matched as themselves, never as wildcards.
+  // Case-insensitive substring match; blank lists everyone. % and _ match literally.
   string name_contains = 2;
 }
 

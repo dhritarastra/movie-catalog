@@ -14,7 +14,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
-/** A movie, mapped to the `movie` table created by V1__create_movie.sql. */
 @Entity
 @Table(name = "movie")
 class Movie(
@@ -22,7 +21,6 @@ class Movie(
     var synopsis: String?,
     var releaseDate: LocalDate?,
     var runtimeMinutes: Int?,
-    // A Postgres text[] column.
     @field:JdbcTypeCode(SqlTypes.ARRAY)
     var genres: List<String>,
 ) {
@@ -31,15 +29,10 @@ class Movie(
     var id: UUID? = null
         protected set
 
-    // Owned by media-service, so there is no foreign key across the service boundary. It changes
-    // only through MovieService.setArtwork and clearArtwork, never through an edit.
+    // Owned by media-service, so there is no foreign key.
     var artworkId: UUID? = null
 
-    /**
-     * Starts at 1 and goes up by one with every change. Hibernate puts the version it read into
-     * each UPDATE and DELETE, so a write that lost a race to another one fails instead of
-     * overwriting it.
-     */
+    // Hibernate checks this on every update and delete, so a stale write fails.
     @Version
     var version: Int = 1
         protected set
@@ -52,13 +45,8 @@ class Movie(
         protected set
 
     /**
-     * Called by the service for every accepted change, even when the submitted values are
-     * unchanged: making the timestamp dirty causes Hibernate to issue one version-checked UPDATE
-     * on flush. It is a plain call rather than a @PreUpdate callback, so each write sets the
-     * timestamp once, in one obvious place. Keep it distinct at Postgres microsecond precision
-     * even for two immediate writes.
-     * JPA's OPTIMISTIC_FORCE_INCREMENT lock is not used instead: when a field does change, it
-     * raises the version twice (once for the UPDATE, once for the forced increment).
+     * Called on every accepted change, so Hibernate always runs a version-checked UPDATE,
+     * even when no field changed.
      */
     fun markUpdated() {
         updatedAt = maxOf(currentTimestamp(), updatedAt.plusNanos(1_000))

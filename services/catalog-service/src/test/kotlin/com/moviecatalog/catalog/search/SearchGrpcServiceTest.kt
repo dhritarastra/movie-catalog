@@ -23,7 +23,6 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.jdbc.core.simple.JdbcClient
 
-/** Drives the real search endpoint in-process against Postgres. */
 @CatalogGrpcTest
 class SearchGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
     private val channel: ManagedChannel = InProcessChannelBuilder.forName(CATALOG_IN_PROCESS_NAME).directExecutor().build()

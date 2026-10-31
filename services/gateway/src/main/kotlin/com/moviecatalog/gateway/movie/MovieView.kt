@@ -3,10 +3,7 @@ package com.moviecatalog.gateway.movie
 import com.moviecatalog.gateway.graphql.toIsoString
 import com.moviecatalog.catalog.v1.Movie as MovieProto
 
-/**
- * The GraphQL `Movie` as data. Protobuf getters return "" or 0 for unset optional fields,
- * so this view turns them back into nulls before GraphQL sees them.
- */
+/** Protobuf returns "" or 0 for unset fields; this turns them back into nulls. */
 data class MovieView(
     val id: String,
     val title: String,

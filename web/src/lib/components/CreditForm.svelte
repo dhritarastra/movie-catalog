@@ -15,12 +15,9 @@
 	import { showToast } from '#lib/toasts.svelte.ts';
 
 	interface Props {
-		/** Shown read-only when editing, because a credit's person cannot change. */
 		person?: { name: string };
-		/** Starting values: empty when adding, the stored credit when editing. */
 		initial?: CreditFormValues;
 		submitLabel: string;
-		/** Saves the values; a rejection is shown as field errors or a message. */
 		onSubmit(values: CreditFormValues): Promise<void>;
 		onCancel(): void;
 	}
@@ -30,7 +27,6 @@
 	const FIELDS = ['personId', 'type', 'characterName', 'billingOrder'];
 	const adding = untrack(() => !person);
 
-	// Copied once, like MovieForm: the form owns its values after it is created.
 	const start = untrack(() => initial);
 	let personId = $state(start?.personId ?? '');
 	let type = $state(start?.type ?? 'CAST');
@@ -44,7 +40,6 @@
 	let form: HTMLFormElement | undefined = $state();
 	const visit = trackVisit();
 
-	// Only an added credit needs a person chosen: they are found by typing part of their name.
 	const SEARCH_DELAY_MS = 250;
 	const WAIT_FOR_SEARCH = 'Wait for the search to finish, then check who is chosen.';
 	const RETRY_SEARCH = 'Retry the search, then check who is chosen.';
@@ -56,15 +51,11 @@
 	let matches = $state<Matches>({ status: 'loading' });
 	let searching = $state(false);
 	let chosenName = $state<string | null>(null);
-	// Set when new results no longer list the chosen person, so the status can say so once.
 	let choiceCleared = $state(false);
 	let attempt = $state(0);
 
-	// Derived values only notify when they change, so a trailing space does not search again.
 	const searchText = $derived(query.trim());
-	// The list on screen is current only once the latest search has answered. Until then (while
-	// it waits, loads or after it failed) nothing can be chosen or saved from it: the choice
-	// could be someone the latest results no longer list.
+	// Until the latest search answers, the list can't be used: it may not match the results.
 	const listOutOfDate = $derived(
 		searching || matches.status !== 'ready' || matches.text !== searchText
 	);
@@ -74,14 +65,13 @@
 		const text = searchText;
 		void attempt;
 		const controller = new AbortController();
-		// Waits for a pause in typing. The cleanup cancels both the wait and the request it
-		// started, so an older, slower answer can never replace a newer one.
+		// Wait for a pause in typing; the cleanup cancels older requests so they never win.
 		const timer = setTimeout(
 			() => {
 				searching = true;
 				request(PersonPickerQuery, { nameContains: text || null }, { signal: controller.signal })
 					.then((data) => {
-						// A choice is kept only while the list shows it, so what is saved is what is seen.
+						// Only keep a choice that the list still shows.
 						choiceCleared = !!personId && !data.people.items.some((p) => p.id === personId);
 						if (choiceCleared) {
 							personId = '';
@@ -114,7 +104,6 @@
 		};
 	});
 
-	// Opening the form moves focus into it; when editing, the person is fixed, so the role is first.
 	onMount(() => focusField(adding ? 'personId' : 'type'));
 
 	function focusField(id: string) {
@@ -126,7 +115,6 @@
 		if (saving) return;
 		const values = { personId, type, characterName, billingOrder };
 		errors = validateCredit(values, adding);
-		// A newer search may drop the person chosen from the list on screen, so wait for it.
 		if (adding && personId && listOutOfDate) {
 			errors.personId = matches.status === 'error' ? RETRY_SEARCH : WAIT_FOR_SEARCH;
 		}
@@ -152,7 +140,6 @@
 		if (failure && stillHere()) await showFailure(failure, stillHere);
 	}
 
-	/** Locking the fields took focus off the form, so focus goes back to what needs attention. */
 	async function showFailure(failure: SaveFailure, stillHere: () => boolean) {
 		if (failure.kind === 'fields') errors = failure.errors;
 		else formError = failure.message;
@@ -187,7 +174,6 @@
 					aria-invalid={!!errors.personId}
 					aria-describedby={errors.personId ? 'personId-status personId-error' : 'personId-status'}
 				/>
-				<!-- Everything a search changes is announced here, so the results are heard as well as seen. -->
 				<p class="muted hint" id="personId-status" aria-live="polite">
 					{#if chosenName}Chosen: <strong>{chosenName}</strong>.{/if}
 					{#if choiceCleared}Choice cleared.{/if}
@@ -308,7 +294,6 @@
 		overflow-wrap: anywhere;
 	}
 
-	/* The form's text-input sizing does not apply to radio buttons. */
 	.match input {
 		width: auto;
 		min-height: auto;

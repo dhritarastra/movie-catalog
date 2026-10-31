@@ -8,10 +8,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.multipart.MaxUploadSizeExceededException
 
-/**
- * The servlet container rejects a request over spring.servlet.multipart limits while parsing it,
- * before any handler runs, so this has to be global advice rather than a handler method.
- */
+/** The servlet container rejects oversized multipart requests before any handler runs. */
 @RestControllerAdvice
 class UploadLimitAdvice(private val properties: GatewayProperties) {
     @ExceptionHandler(MaxUploadSizeExceededException::class)

@@ -34,7 +34,6 @@ import org.springframework.jdbc.core.simple.JdbcClient
 import java.util.UUID
 import com.moviecatalog.catalog.v1.Credit as CreditProto
 
-/** Drives the real credit endpoint in-process against Postgres, with real movies and people. */
 @CatalogGrpcTest
 class CreditGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
     private val channel: ManagedChannel = InProcessChannelBuilder.forName(CATALOG_IN_PROCESS_NAME).directExecutor().build()

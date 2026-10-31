@@ -18,7 +18,6 @@ import org.springframework.data.domain.Sort
 import org.springframework.jdbc.core.simple.JdbcClient
 import java.util.UUID
 
-/** The credit mapping against the real schema: the unique rule, the role check and both foreign keys. */
 @DataJpaTest
 @Import(TestcontainersConfiguration::class)
 class CreditRepositoryTest(

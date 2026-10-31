@@ -16,10 +16,6 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.Duration
 
-/**
- * Docker checks catalog health through the standard gRPC health service, so this verifies
- * that the gRPC status follows application health, including the database connection.
- */
 @SpringBootTest(
     properties = [
         "spring.grpc.server.port=0",
@@ -30,7 +26,7 @@ import java.time.Duration
     ],
 )
 @Testcontainers
-// The test stops the database, so later tests must not reuse this cached Spring context.
+// The test stops the database, so the context must not be reused.
 @DirtiesContext
 class GrpcHealthTest {
     companion object {

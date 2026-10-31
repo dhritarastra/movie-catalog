@@ -35,7 +35,6 @@
 		const movieId = id;
 		void attempt;
 		const controller = new AbortController();
-		// Back/Forward can reuse this component for another ID while an action is pending.
 		confirming = null;
 		busy = false;
 		confirmError = null;
@@ -52,7 +51,6 @@
 		return () => controller.abort();
 	});
 
-	// Shown only if this page still shows that movie; the toast confirms the upload either way.
 	function uploaded(movie: MovieDetailFieldsFragment) {
 		if (movie.id === id) view = { status: 'ready', movie };
 		showToast('success', 'Artwork updated.');
@@ -60,7 +58,6 @@
 
 	const visit = trackVisit();
 
-	// One confirmation dialog, for whichever destructive action was chosen.
 	let confirming = $state<'delete' | 'remove-artwork' | null>(null);
 	let busy = $state(false);
 	let confirmError = $state<string | null>(null);
@@ -70,11 +67,6 @@
 		confirming = action;
 	}
 
-	/**
-	 * The dialog blocks the page while this runs, but not the browser's Back button. If the user
-	 * leaves, the outcome is still confirmed with a toast, but this page neither navigates nor
-	 * updates (see trackVisit).
-	 */
 	async function confirm(movie: MovieDetailFieldsFragment) {
 		const stillHere = visit.mark();
 		busy = true;
@@ -101,7 +93,6 @@
 			}
 			if (error instanceof GraphQlRequestError && error.code === 'CONFLICT') {
 				confirming = null;
-				// Nothing was changed. Show the latest version so the user decides again knowingly.
 				attempt++;
 				showToast(
 					'error',

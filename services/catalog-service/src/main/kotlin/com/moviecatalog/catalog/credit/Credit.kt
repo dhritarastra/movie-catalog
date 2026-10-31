@@ -13,10 +13,8 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * A person's role on a movie, mapped to the `credit` table created by V3__create_credit.sql.
- * The movie and person are kept as plain IDs rather than JPA relations: credits are always
- * loaded in batches by movie or by person, and the database enforces the references.
- * Credits are last-write-wins, so there is no version.
+ * Movie and person are plain IDs because credits are always loaded in batches.
+ * There is no version: the last write wins.
  */
 @Entity
 @Table(name = "credit")
