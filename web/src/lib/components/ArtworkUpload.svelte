@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TmdbPosterFinder from '#lib/components/TmdbPosterFinder.svelte';
 	import { trackVisit } from '#lib/navigation.ts';
 	import { showToast } from '#lib/toasts.svelte.ts';
 	import { describeError, GraphQlRequestError } from '#lib/graphql/client.ts';
@@ -14,11 +15,13 @@
 		movieId: string;
 		version: number;
 		hasArtwork: boolean;
+		// Shows "Find poster on TMDB" when the server can look posters up.
+		tmdb?: boolean;
 		onUploaded(movie: MovieDetailFieldsFragment): void;
 		onReload(): void;
 	}
 
-	let { movieId, version, hasArtwork, onUploaded, onReload }: Props = $props();
+	let { movieId, version, hasArtwork, tmdb = false, onUploaded, onReload }: Props = $props();
 
 	type Phase =
 		| { name: 'idle' }
@@ -125,6 +128,9 @@
 				? `${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`
 				: 'No file chosen'}</span
 		>
+		{#if tmdb}
+			<TmdbPosterFinder {movieId} {version} disabled={busy} {onUploaded} {onReload} />
+		{/if}
 	</div>
 	{#if fileError}<p class="error" id="artwork-file-error" role="alert">{fileError}</p>{/if}
 

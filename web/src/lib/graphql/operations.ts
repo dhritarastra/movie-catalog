@@ -41,6 +41,26 @@ export const MovieQuery = graphql(`
 		movie(id: $id) {
 			...MovieDetailFields
 		}
+		tmdbPostersEnabled
+	}
+`);
+
+export const FindTmdbPosterQuery = graphql(`
+	query FindTmdbPoster($movieId: ID!) {
+		tmdbPoster(movieId: $movieId) {
+			tmdbId
+			title
+			releaseYear
+			previewUrl
+		}
+	}
+`);
+
+export const UseTmdbPosterMutation = graphql(`
+	mutation UseTmdbPoster($movieId: ID!, $version: Int!, $tmdbId: Int!) {
+		useTmdbPoster(movieId: $movieId, version: $version, tmdbId: $tmdbId) {
+			...MovieDetailFields
+		}
 	}
 `);
 

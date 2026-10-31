@@ -64,7 +64,23 @@ export type MovieQueryVariables = Exact<{
 }>;
 
 
-export type MovieQuery = { movie: { id: string, title: string, synopsis: string | null, releaseDate: string | null, runtimeMinutes: number | null, genres: Array<string>, version: number, artworkUrl: string | null } | null };
+export type MovieQuery = { tmdbPostersEnabled: boolean, movie: { id: string, title: string, synopsis: string | null, releaseDate: string | null, runtimeMinutes: number | null, genres: Array<string>, version: number, artworkUrl: string | null } | null };
+
+export type FindTmdbPosterQueryVariables = Exact<{
+  movieId: string | number;
+}>;
+
+
+export type FindTmdbPosterQuery = { tmdbPoster: { tmdbId: number, title: string, releaseYear: string | null, previewUrl: string } | null };
+
+export type UseTmdbPosterMutationVariables = Exact<{
+  movieId: string | number;
+  version: number;
+  tmdbId: number;
+}>;
+
+
+export type UseTmdbPosterMutation = { useTmdbPoster: { id: string, title: string, synopsis: string | null, releaseDate: string | null, runtimeMinutes: number | null, genres: Array<string>, version: number, artworkUrl: string | null } };
 
 export type CreateMovieMutationVariables = Exact<{
   input: MovieInput;
@@ -279,6 +295,7 @@ export const MovieDocument = new TypedDocumentString(`
   movie(id: $id) {
     ...MovieDetailFields
   }
+  tmdbPostersEnabled
 }
     fragment MovieDetailFields on Movie {
   id
@@ -290,6 +307,32 @@ export const MovieDocument = new TypedDocumentString(`
   version
   artworkUrl(variant: FULL)
 }`) as unknown as TypedDocumentString<MovieQuery, MovieQueryVariables>;
+export const FindTmdbPosterDocument = new TypedDocumentString(`
+    query FindTmdbPoster($movieId: ID!) {
+  tmdbPoster(movieId: $movieId) {
+    tmdbId
+    title
+    releaseYear
+    previewUrl
+  }
+}
+    `) as unknown as TypedDocumentString<FindTmdbPosterQuery, FindTmdbPosterQueryVariables>;
+export const UseTmdbPosterDocument = new TypedDocumentString(`
+    mutation UseTmdbPoster($movieId: ID!, $version: Int!, $tmdbId: Int!) {
+  useTmdbPoster(movieId: $movieId, version: $version, tmdbId: $tmdbId) {
+    ...MovieDetailFields
+  }
+}
+    fragment MovieDetailFields on Movie {
+  id
+  title
+  synopsis
+  releaseDate
+  runtimeMinutes
+  genres
+  version
+  artworkUrl(variant: FULL)
+}`) as unknown as TypedDocumentString<UseTmdbPosterMutation, UseTmdbPosterMutationVariables>;
 export const CreateMovieDocument = new TypedDocumentString(`
     mutation CreateMovie($input: MovieInput!) {
   createMovie(input: $input) {
