@@ -139,14 +139,14 @@ main.container {
 	color: var(--text-muted);
 }
 
-/* Edit forms (MovieForm, PersonForm): labelled fields in one column, side by side in a .row. */
+/* Shared form layout for MovieForm and PersonForm. */
 .form {
 	display: grid;
 	gap: 1.25rem;
 	max-width: 640px;
 }
 
-/* Wraps the inputs so a single `disabled` locks them all while a save is in flight. */
+/* One `disabled` on the fieldset locks every input while saving. */
 .form fieldset {
 	display: grid;
 	gap: 1.25rem;
@@ -177,6 +177,7 @@ main.container {
 }
 
 .form input,
+.form select,
 .form textarea {
 	width: 100%;
 	min-height: 42px;
@@ -189,6 +190,7 @@ main.container {
 }
 
 .form input:disabled,
+.form select:disabled,
 .form textarea:disabled {
 	opacity: 0.65;
 	cursor: not-allowed;

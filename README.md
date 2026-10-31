@@ -4,10 +4,9 @@ A movie catalog with artwork, cast and creators. It has a Svelte + TypeScript fr
 Kotlin Spring Boot services: the frontend talks to the backend over GraphQL, and the
 services talk to each other over gRPC.
 
-> **Status: in progress.** You can list, create, view, edit and delete movies and people (cast
-> and creators), and upload, replace and remove movie artwork, through the whole stack. Crediting
-> people on movies and search are next; see the schedule in
-> [docs/PLAN.md](docs/PLAN.md#11-schedule-26-october-to-1-november-2026).
+> **Status: feature-complete.** Everything the brief asks for works through the whole stack:
+> list, create, view, edit and delete movies and people; upload, replace and remove movie
+> artwork; credit people on movies as cast or creators; and search across movies and people.
 
 ## Architecture
 
@@ -18,13 +17,13 @@ Browser -> nginx (static web, /graphql and /media proxies)
                    -> gRPC -> media-service   -> Postgres media database + file volume
 ```
 
-| Module | What it is |
-|---|---|
-| `proto/` | Shared `.proto` contracts; generates Java messages and gRPC stubs |
-| `services/catalog-service` | Movies, people, credits and search (gRPC server) |
-| `services/media-service` | Artwork storage, validation and thumbnails (gRPC server) |
-| `services/gateway` | GraphQL API and image downloads for the web app; calls the other services over gRPC |
-| `web/` | SvelteKit single-page app, served by nginx in Docker |
+| Module                     | What it is                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| `proto/`                   | Shared `.proto` contracts; generates Java messages and gRPC stubs                   |
+| `services/catalog-service` | Movies, people, credits and search (gRPC server)                                    |
+| `services/media-service`   | Artwork storage, validation and thumbnails (gRPC server)                            |
+| `services/gateway`         | GraphQL API and image downloads for the web app; calls the other services over gRPC |
+| `web/`                     | SvelteKit single-page app, served by nginx in Docker                                |
 
 ## Run everything with Docker
 
@@ -43,10 +42,55 @@ run `docker compose down -v`.
 Only the web app (port 3000) and Postgres (5432, for development) are published, and only on
 `127.0.0.1`. To change ports or passwords, copy `.env.example` to `.env` and edit it.
 
+### Demo data
+
+With the stack running and the catalog still empty, add 13 films, 62 people and their credits:
+
+```bash
+docker compose run --rm seed
+```
+
+It goes through the same GraphQL API as the web app, so every rule applies, and takes a few
+seconds. The films and credits are real (the main cast, the directors and writers, and a few
+producers); the synopses and bios are written for this project. The Matrix is left without
+artwork, to show the placeholder.
+
+By default every other movie gets the same original abstract poster. To use the films' real
+posters, get a free API Read Access Token from [TMDB](https://www.themoviedb.org/settings/api)
+and pass it in when seeding:
+
+```bash
+TMDB_API_TOKEN=<your token> docker compose run --rm seed
+```
+
+The posters are downloaded at seed time and uploaded through the app, so they are never stored
+in this repository. A movie whose poster can't be fetched gets the shared one instead.
+
+It refuses to run on a catalog that already has movies or people, since it would add them all
+again; `docker compose down -v` empties it. If a run stops part way, it says how far it got, and
+the same reset lets you start again. During local development,
+`cd web && SEED_URL=http://localhost:8080/graphql npm run seed` does the same against the gateway
+(add `TMDB_API_TOKEN=...` in front for real posters).
+
+### Posters from TMDB
+
+With the same token, a movie's "Add artwork" section offers **Find poster on TMDB**. The gateway
+searches TMDB by the movie's title and release year and shows the poster it finds; the user checks
+it and chooses **Use this poster**, which attaches it exactly like an uploaded image. Start the
+stack with the token in the environment to turn it on:
+
+```bash
+TMDB_API_TOKEN=<your token> docker compose up --build --wait
+```
+
+Without a token the button is hidden. The token stays on the server; the browser never sees it.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+
 ## Develop locally
 
 Needs **JDK 17+** to run Gradle (the build uses Java 21, downloaded automatically if missing),
-**Node.js 22**, and Docker.
+**Node.js 22.18 or later** (it runs the seed's TypeScript directly), and Docker.
 
 ```bash
 docker compose up -d --wait postgres
@@ -72,19 +116,26 @@ cd web && npm install && npm run dev
 
 Open **http://localhost:5173**. Vite forwards `/graphql` and `/media` to the gateway on port 8080.
 
-| Component | Port |
-|---|---|
-| web (Vite dev server) | 5173 |
-| gateway (HTTP; GraphQL at `/graphql`, images at `/media/{id}`) | 8080 |
-| catalog-service (gRPC) | 9091 |
-| media-service (gRPC) | 9092 |
-| Postgres | 5432 (`POSTGRES_PORT`) |
+| Component                                                      | Port                   |
+| -------------------------------------------------------------- | ---------------------- |
+| web (Vite dev server)                                          | 5173                   |
+| gateway (HTTP; GraphQL at `/graphql`, images at `/media/{id}`) | 8080                   |
+| catalog-service (gRPC)                                         | 9091                   |
+| media-service (gRPC)                                           | 9092                   |
+| Postgres                                                       | 5432 (`POSTGRES_PORT`) |
 
 `bootRun` does not read `.env`; only Compose does. The services' defaults match `.env.example`.
 If you change the Postgres port or a password, export the matching variables before `bootRun`,
 for example `CATALOG_DB_URL=jdbc:postgresql://localhost:5433/catalog`. Each service lists its
 variables in `src/main/resources/application.yml`. Uploaded images go to `./media-data`
 unless `MEDIA_STORAGE_DIR` is set.
+
+The catalog's paging and search maximums are checked at startup, so a bad value stops the
+service with a message naming the setting instead of failing requests later:
+`catalog.paging.max-limit` must be at least 20 and `catalog.search.max-limit` at least 10, the
+largest page and the number of search results the web app and the gateway ask for. Those numbers
+live in the web app, the gateway and the catalog, with comments pointing to each other, so
+change them together.
 
 After changing `services/gateway/src/main/resources/graphql/schema.graphqls`, regenerate the web
 app's types with `cd web && npm run codegen`.
@@ -122,6 +173,8 @@ lint rules.
 
 `web/e2e/smoke.spec.ts` drives one user flow in Chromium against the running stack, through nginx
 and the real services:
+
+- see a movie list that timed out say to try again, and load it with Retry
 - create a movie, upload artwork and see it displayed, and reload the movie's URL
 - check that bad uploads are refused with a message
 - edit the movie, checking that the form is locked while the save is in flight
@@ -129,11 +182,28 @@ and the real services:
   shows their version
 - leave the edit page while a save is in flight: the save is confirmed, but does not pull the
   user back to the movie
+- receive delayed field-error and timeout responses after leaving both edit forms: a toast
+  explains the outcome and the new draft keeps its focus and values
+- use Back/Forward during deletion: a reused detail page clears the old dialog and stays usable
 - remove the artwork and delete the movie, each after a confirmation
 - add, edit and delete a person, with the form's validation messages
+- credit the person on a movie as cast and as a creator, finding them by name even when 100
+  others sort first, with the form locked while the save is in flight; a duplicate role is
+  refused, editing replaces the character and billing order, and a credit removed elsewhere while
+  being edited is explained
+- keep a chosen person only while the list on screen shows them: a save is refused while the
+  person search is still answering or after it failed, and a search that drops them clears the
+  choice and says so
+- see the person's credits on their page, and have their deletion refused until the credits are
+  removed
+- search from the header, see the movie and the person labelled with their roles, open a result
+  and come Back to the same results, and check that a typed `%` matches only itself
+- check that each search is sent once, fast typing is never lost, a slower older search never
+  replaces a newer one, and a search that timed out can be retried
 
-The in-flight steps hold the GraphQL response in the test (the server has already saved), so
-they do not depend on timing.
+The successful in-flight steps hold real GraphQL responses (the server has already saved).
+The late-failure steps inject delayed field-error and timeout responses. Neither depends on
+connection timing.
 
 Start the stack and wait until every service is healthy:
 
@@ -165,7 +235,7 @@ A run that passes deletes the movie and person it created. A failed or interrupt
 a movie named "Smoke test …" or a person named "Ada Smoke …" behind; they do not affect later
 runs, and `docker compose down -v` clears all data.
 
-CI runs all of these on pushes to `main` and on pull requests (`.github/workflows/ci.yml`). Its
+CI runs all of these on every branch push and on pull requests (`.github/workflows/ci.yml`). Its
 `stack` job builds the Docker images, starts the stack, and runs the browser smoke test against
 it, uploading the Playwright report if it fails.
 
@@ -178,21 +248,101 @@ GraphQL at `POST /graphql`; the full schema is
 query {
   movies(page: { offset: 0, limit: 12 }) {
     totalCount
-    items { id title releaseDate artworkUrl(variant: THUMBNAIL) }
+    items {
+      id
+      title
+      releaseDate
+      artworkUrl(variant: THUMBNAIL)
+    }
   }
 }
 ```
 
 Updates replace every editable field and carry the version that was read; a stale version is a
-`CONFLICT`:
+`CONFLICT`. Every successful movie/person update and artwork attach/remove advances the movie
+or person version exactly once, including requests whose values are unchanged.
+
+People are listed alphabetically using Postgres's `und-x-icu` collation. Case and accents can
+break ties between otherwise equivalent letters; the ID breaks ties between identical names.
+The original V2 migration comment says these distinctions are ignored, but that is inaccurate;
+the applied migration is kept unchanged to preserve its Flyway checksum.
+
+For example:
 
 ```graphql
 mutation {
-  updatePerson(id: "<id>", version: 1, input: { name: "Amy Adams", birthDate: "1974-08-20" }) {
+  updatePerson(
+    id: "<id>"
+    version: 1
+    input: { name: "Amy Adams", birthDate: "1974-08-20" }
+  ) {
     version
   }
 }
 ```
+
+Credits link a person to a movie as `CAST`, `DIRECTOR`, `WRITER` or `PRODUCER`. Only cast
+credits have a character name; the billing order (0 to 1000) sorts each list. A person can hold
+several roles on one movie, but the same role and character twice is a `CONFLICT`. Credits are
+last-write-wins: they carry no version, and changing them does not change the movie's or the
+person's version. Deleting a movie deletes its credits; a person with credits cannot be deleted
+(`FAILED_PRECONDITION`) until those are removed.
+
+```graphql
+mutation {
+  addCredit(
+    input: {
+      movieId: "<id>"
+      personId: "<id>"
+      type: CAST
+      characterName: "Louise Banks"
+      billingOrder: 0
+    }
+  ) {
+    id
+    person {
+      name
+    }
+  }
+}
+```
+
+A movie's `cast` and `creators`, and a person's `credits`, are loaded in one catalog call per
+field for a whole page, not one call per movie or person.
+
+`people(nameContains: "amy")` lists only people whose name contains the text, ignoring case;
+the credit form uses it to find anyone, however long the list of people.
+
+Search finds movies by title and people by name in one ranked list: the whole title or name
+first, then ones that start with the query, then ones that contain it, then alphabetically. Case
+is ignored for every letter (`ZOË` finds `Zoë`), accents are not, and `%`, `_` and `\` match
+themselves. Queries are trimmed and up to 200 characters; `limit` defaults to 10 and may be up
+to `catalog.search.max-limit` (50; the service refuses to start with less than the 10 the web
+app asks for). Each search scans the movie and person tables; that is fast at this catalogue's
+size, and a `pg_trgm` GIN index on the lowered title and name would be the next step for a large
+one.
+
+```graphql
+query {
+  search(query: "arrival") {
+    __typename
+    ... on Movie {
+      id
+      title
+    }
+    ... on Person {
+      id
+      name
+      credits {
+        type
+      }
+    }
+  }
+}
+```
+
+The web app's `/search?q=` page searches as you type, and the header has a search box on every
+other page.
 
 Artwork is uploaded with the
 [GraphQL multipart request spec](https://github.com/jaydenseric/graphql-multipart-request-spec):
@@ -205,17 +355,76 @@ curl http://localhost:3000/graphql \
 ```
 
 Images are JPEG or PNG, up to 5 MB and 8000×8000 pixels. Errors carry `extensions.code`
-(`BAD_REQUEST` with `fieldErrors`, `NOT_FOUND`, `CONFLICT`, `RESOURCE_EXHAUSTED`,
-`SERVICE_UNAVAILABLE`, ...).
-
-## Documentation
-
-- [docs/PLAN.md](docs/PLAN.md): scope, architecture, contracts, testing gates and schedule
-- [docs/DECISIONS.md](docs/DECISIONS.md): decisions, trade-offs and known limitations
-- [docs/AI_USAGE.md](docs/AI_USAGE.md): how AI tools were used and how their output was checked
+(`BAD_REQUEST` with `fieldErrors`, `NOT_FOUND`, `CONFLICT`, `FAILED_PRECONDITION`,
+`RESOURCE_EXHAUSTED`, `SERVICE_UNAVAILABLE`, ...).
 
 ## How AI tools were used
 
-Claude Code was used for planning, version research and generating code. Astra and Codex
-reviewed the plan and the code. Every change is checked by building and testing it, by running
-it, and by my own review. The full log is in [docs/AI_USAGE.md](docs/AI_USAGE.md).
+I used AI tools as assistants, the way I would use a search engine or a second reviewer. The
+scope and design decisions are mine. Builds, tests, runtime checks and independent reviews
+are used to verify changes. Some refactor commits preceded full Docker/browser verification;
+commit messages record those gaps. Check the CI run for the exact commit being reviewed.
+
+**Tools**
+
+- **Claude Code** (Anthropic): turning the brief into a plan, checking current library
+  versions, and writing code and tests from my prompts, one slice at a time.
+- **Astra**, a second AI agent: reviewed the plan and the first working slice.
+- **Codex** (OpenAI): independent reviews of individual commits.
+
+**How the work was done.** Green steps are done by an AI tool, orange ones by me; nothing moves
+on without my decision.
+
+```mermaid
+flowchart LR
+    subgraph plan [1. Plan, once]
+        direction TB
+        Brief[Brief]:::doc --> Draft[Plan drafted:<br/>scope, contracts, test gates]:::ai
+        Draft --> Challenge[Reviewed by Astra<br/>and Codex]:::ai --> Cut[I choose the scope<br/>and what to cut]:::human
+    end
+
+    subgraph slice [2. One loop per feature]
+        direction TB
+        Build[Build end to end<br/>with tests]:::ai --> Verify[verify:<br/>build, tests, stack, smoke]:::ai
+        Verify --> Review[code-reviewer agent<br/>or Codex review]:::ai --> Pick[I pick the findings]:::human
+        Pick --> Fix[Reproduce, fix, add a test<br/>that fails without the fix]:::ai --> Check[I check the screens<br/>in a browser]:::human
+    end
+
+    subgraph ship [3. Ship]
+        direction TB
+        Commit[I approve commit<br/>and push]:::human --> CI[CI: the same checks<br/>on every push]:::doc
+    end
+
+    plan --> slice --> ship
+
+    classDef doc fill:#3B82F6,stroke:#1E3A8A,color:#fff
+    classDef ai fill:#10B981,stroke:#064E3B,color:#fff
+    classDef human fill:#F59E0B,stroke:#78350F,color:#fff
+```
+
+The loop is written down in the repository, as plain Markdown that Claude Code reads:
+
+| File                                                                 | What it is                                                                       |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| [`CLAUDE.md`](CLAUDE.md)                                             | The conventions every run follows: stack, code style, testing rules, the process |
+| [`.claude/skills/verify`](.claude/skills/verify/SKILL.md)            | The checks run after every change, reported as PASS or FAIL                      |
+| [`.claude/skills/gen-tests`](.claude/skills/gen-tests/SKILL.md)      | Where each kind of test goes, and the edge-case checklist                        |
+| [`.claude/skills/ship-slice`](.claude/skills/ship-slice/SKILL.md)    | The whole loop for one feature                                                   |
+| [`.claude/agents/code-reviewer.md`](.claude/agents/code-reviewer.md) | A read-only reviewer that runs the tests but never edits code                    |
+
+I wrote these down partway through, once the loop had settled over the first slices, and used
+them from then on. My plan and working log stay outside the repository.
+
+**What the checks caught**, for example:
+
+- Spring for GraphQL answered multipart uploads with HTTP 415 before the upload handler could
+  run; the handler is now a router function ordered ahead of it.
+- A Kotlin builder field shadowed the value being copied, so every artwork change reported a
+  previous artwork of `""`. The tests caught it before commit.
+- Truncated JPEGs were accepted, failed image downloads could be cached for a year, and a JSON
+  `null` in a multipart request caused a 500. All three were found in review and reproduced.
+- Names were sorted byte by byte on the Alpine Postgres image, so "Émile" came after "zoe".
+  Found by sending requests by hand; the name column now uses an ICU collation.
+- Forms stayed editable during a save, and leaving the page mid-save was undone when the
+  response arrived. Found in review with delayed responses; the smoke test now holds a
+  response to check both.

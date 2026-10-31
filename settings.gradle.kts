@@ -1,4 +1,5 @@
 pluginManagement {
+    includeBuild("build-logic")
     repositories {
         gradlePluginPortal()
         mavenCentral()
@@ -6,7 +7,7 @@ pluginManagement {
 }
 
 plugins {
-    // Lets the Java 21 toolchain be downloaded automatically when it is not installed locally.
+    // Downloads the Java 21 toolchain if it is not installed.
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 

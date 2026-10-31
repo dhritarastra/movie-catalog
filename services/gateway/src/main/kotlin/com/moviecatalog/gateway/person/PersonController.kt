@@ -12,18 +12,17 @@ import org.springframework.graphql.data.method.annotation.MutationMapping
 import org.springframework.graphql.data.method.annotation.QueryMapping
 import org.springframework.stereotype.Controller
 
-/** People: cast members and creators. Same rules as movies: full-replacement updates guarded by `version`. */
 @Controller
 class PersonController(private val catalog: CatalogClient) {
     @QueryMapping
-    fun people(@Argument page: PageInput?): PersonPageView {
+    fun people(@Argument page: PageInput?, @Argument nameContains: String?): PersonPageView {
         val offset = page.offsetOrDefault()
         val limit = page.limitOrDefault()
-        val response = catalog.listPeople(offset, limit)
+        val response = catalog.listPeople(offset, limit, nameContains.orEmpty())
         return PersonPageView(response.peopleList.map(PersonView::of), response.totalCount, offset, limit)
     }
 
-    /** A missing person is `null`, as the schema allows; a malformed ID is still an error. */
+    /** A missing person is null; a malformed ID is still an error. */
     @QueryMapping
     fun person(@Argument id: String): PersonView? =
         try {
@@ -35,7 +34,6 @@ class PersonController(private val catalog: CatalogClient) {
     @MutationMapping
     fun createPerson(@Argument input: PersonInput): PersonView = PersonView.of(catalog.createPerson(input.toFields()))
 
-    /** Replaces every editable field; fails with CONFLICT if the person changed since [version] was read. */
     @MutationMapping
     fun updatePerson(@Argument id: String, @Argument version: Int, @Argument input: PersonInput): PersonView =
         PersonView.of(catalog.updatePerson(id, version, input.toFields()))
@@ -47,7 +45,7 @@ class PersonController(private val catalog: CatalogClient) {
 private fun PersonInput.toFields(): PersonFields =
     PersonFields.newBuilder()
         .setName(name)
-        // Named explicitly: inside the builder's apply, a bare `bio` would be the builder's field.
+        // Inside apply, a bare bio would be the builder's own field.
         .apply {
             this@toFields.bio?.let { setBio(it) }
             this@toFields.birthDate?.let { setBirthDate(it) }

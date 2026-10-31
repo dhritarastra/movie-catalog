@@ -1,6 +1,6 @@
 package com.moviecatalog.gateway.grpc
 
-import com.moviecatalog.gateway.GatewayProperties
+import com.moviecatalog.gateway.config.GatewayProperties
 import com.moviecatalog.media.v1.Artwork
 import com.moviecatalog.media.v1.MediaServiceGrpc
 import com.moviecatalog.media.v1.UploadArtworkRequest
@@ -20,7 +20,6 @@ import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
-/** The client side of the streaming upload, against a fake media server over in-process gRPC. */
 class MediaClientTest {
     private val name = InProcessServerBuilder.generateName()
     private lateinit var server: Server
@@ -58,7 +57,7 @@ class MediaClientTest {
         }
 
         assertThat(error.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
-        // Far fewer than the 16 chunks a full send would need; exact count depends on what was in flight.
+        // A full send would need 16 chunks.
         assertThat(fake.chunksSeen.get()).isLessThan(16)
     }
 
@@ -68,7 +67,7 @@ class MediaClientTest {
         return MediaClient(
             MediaServiceGrpc.newStub(channel),
             MediaServiceGrpc.newBlockingStub(channel),
-            GatewayProperties(5_242_880, Duration.ofSeconds(2), Duration.ofSeconds(10), Duration.ofSeconds(10)),
+            GatewayProperties(5_242_880, Duration.ofSeconds(2), Duration.ofSeconds(10), Duration.ofSeconds(10), 64 * 1024, Duration.ofSeconds(60)),
         )
     }
 

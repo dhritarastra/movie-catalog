@@ -3,13 +3,12 @@
 	import type { ResolvedPathname } from '$app/types';
 	import { page } from '$app/state';
 	import MovieCard from '#lib/components/MovieCard.svelte';
-	import { describeError, request } from '#lib/graphql/client.ts';
+	import { describeReadError, request } from '#lib/graphql/client.ts';
 	import type { MoviesQuery as MoviesResult } from '#lib/graphql/generated/graphql.ts';
 	import { MoviesQuery } from '#lib/graphql/operations.ts';
 
 	const PAGE_SIZE = 12;
 
-	// resolve() builds the path; the page number is a query string, which resolve() does not take.
 	const pageHref = (n: number) => `${resolve('/movies')}?page=${n}` as ResolvedPathname;
 
 	type View =
@@ -23,8 +22,7 @@
 	let view = $state<View>({ status: 'loading' });
 	let attempt = $state(0);
 
-	// Reloads whenever the page number changes (or Retry is pressed). Aborting the previous
-	// request on change means a slow earlier response can never overwrite a newer page.
+	// Aborting the previous request means a slow old page can never replace a newer one.
 	$effect(() => {
 		const offset = (pageNumber - 1) * PAGE_SIZE;
 		void attempt;
@@ -33,7 +31,8 @@
 		request(MoviesQuery, { page: { offset, limit: PAGE_SIZE } }, { signal: controller.signal })
 			.then((data) => (view = { status: 'ready', movies: data.movies }))
 			.catch((error) => {
-				if (error?.name !== 'AbortError') view = { status: 'error', message: describeError(error) };
+				if (error?.name !== 'AbortError')
+					view = { status: 'error', message: describeReadError(error) };
 			});
 		return () => controller.abort();
 	});
@@ -89,7 +88,6 @@
 		<p class="muted">Add the first one to start the catalog.</p>
 	</div>
 {:else if view.movies.items.length === 0}
-	<!-- Happens when movies were removed while you were on a later page. -->
 	<div class="panel empty">
 		<h2>This page is empty</h2>
 		<a class="button" href={pageHref(lastPage)}>Go to the last page</a>

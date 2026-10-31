@@ -27,7 +27,6 @@ import javax.imageio.ImageIO
 import com.moviecatalog.media.v1.Artwork as ArtworkProto
 import com.moviecatalog.media.v1.ArtworkVariant as ArtworkVariantProto
 
-/** Upload, download and delete through the real gRPC endpoint, with Postgres and files on disk. */
 @SpringBootTest(
     properties = [
         "spring.grpc.server.port=0",

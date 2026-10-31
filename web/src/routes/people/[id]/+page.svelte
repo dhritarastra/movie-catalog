@@ -3,9 +3,18 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
-	import { formatDate } from '#lib/format.ts';
-	import { describeError, GraphQlRequestError, request } from '#lib/graphql/client.ts';
-	import type { PersonDetailFieldsFragment } from '#lib/graphql/generated/graphql.ts';
+	import { formatDate, yearOf } from '#lib/format.ts';
+	import {
+		describeError,
+		describeReadError,
+		GraphQlRequestError,
+		request
+	} from '#lib/graphql/client.ts';
+	import { describeRole, resolved } from '#lib/credits.ts';
+	import type {
+		PersonDetailFieldsFragment,
+		PersonQuery as PersonQueryResult
+	} from '#lib/graphql/generated/graphql.ts';
 	import { DeletePersonMutation, PersonQuery } from '#lib/graphql/operations.ts';
 	import { trackVisit } from '#lib/navigation.ts';
 	import { showToast } from '#lib/toasts.svelte.ts';
@@ -14,7 +23,7 @@
 		| { status: 'loading' }
 		| { status: 'not-found' }
 		| { status: 'error'; message: string }
-		| { status: 'ready'; person: PersonDetailFieldsFragment };
+		| { status: 'ready'; person: NonNullable<PersonQueryResult['person']> };
 
 	const id = $derived(page.params.id ?? '');
 	let view = $state<View>({ status: 'loading' });
@@ -24,6 +33,9 @@
 		const personId = id;
 		void attempt;
 		const controller = new AbortController();
+		confirming = false;
+		busy = false;
+		confirmError = null;
 		view = { status: 'loading' };
 		request(PersonQuery, { id: personId }, { signal: controller.signal })
 			.then(
@@ -31,7 +43,8 @@
 					(view = data.person ? { status: 'ready', person: data.person } : { status: 'not-found' })
 			)
 			.catch((error) => {
-				if (error?.name !== 'AbortError') view = { status: 'error', message: describeError(error) };
+				if (error?.name !== 'AbortError')
+					view = { status: 'error', message: describeReadError(error) };
 			});
 		return () => controller.abort();
 	});
@@ -42,35 +55,37 @@
 
 	const visit = trackVisit();
 
-	/** Like deleting a movie: if the user leaves while this runs, they get a toast but stay where they went. */
+	/** A person can have several credits on one movie, so count movies once. */
+	function creditedMovies(person: NonNullable<PersonQueryResult['person']>): number {
+		return new Set(resolved(person.credits, 'movie').map((credit) => credit.movie.id)).size;
+	}
+
 	async function remove(person: PersonDetailFieldsFragment) {
 		const stillHere = visit.mark();
 		busy = true;
 		confirmError = null;
 		try {
 			await request(DeletePersonMutation, { id: person.id, version: person.version });
-			confirming = false;
+			if (stillHere()) confirming = false;
 			showToast('success', `${person.name} was deleted.`);
 			if (stillHere()) await goto(resolve('/people'));
 		} catch (error) {
+			if (!stillHere()) {
+				showToast('error', `Deletion of “${person.name}”: ${describeError(error)}`);
+				return;
+			}
 			if (error instanceof GraphQlRequestError && error.code === 'CONFLICT') {
 				confirming = false;
-				if (stillHere()) {
-					// Nothing was deleted. Show the latest version so the user decides again knowingly.
-					attempt++;
-					showToast(
-						'error',
-						'Someone else changed this person, so nothing was deleted. This is the latest version; try again if you still want to.'
-					);
-				} else {
-					showToast('error', `Someone else changed ${person.name}, so nothing was deleted.`);
-				}
+				attempt++;
+				showToast(
+					'error',
+					'Someone else changed this person, so nothing was deleted. This is the latest version; try again if you still want to.'
+				);
 			} else {
-				// Includes FAILED_PRECONDITION, whose message explains what has to change first.
 				confirmError = describeError(error);
 			}
 		} finally {
-			busy = false;
+			if (stillHere()) busy = false;
 		}
 	}
 </script>
@@ -100,6 +115,7 @@
 	</div>
 {:else}
 	{@const person = view.person}
+	{@const credits = resolved(person.credits, 'movie')}
 	<article class="details">
 		<div class="title-row">
 			<h1>{person.name}</h1>
@@ -117,12 +133,33 @@
 		</div>
 		{#if person.birthDate}<p class="muted">Born {formatDate(person.birthDate)}</p>{/if}
 		{#if person.bio}<p class="bio">{person.bio}</p>{/if}
+
+		<section class="credits-section" aria-labelledby="credits-heading">
+			<h2 id="credits-heading">Credits</h2>
+			{#if credits.length === 0}
+				<p class="muted">No credits yet. Credit them from a movie's page.</p>
+			{:else}
+				<ul class="credits" aria-label="Credits">
+					{#each credits as credit (credit.id)}
+						<li>
+							<a href={resolve('/movies/[id]', { id: credit.movie.id })}>{credit.movie.title}</a>
+							{#if credit.movie.releaseDate}
+								<span class="muted">({yearOf(credit.movie.releaseDate)})</span>
+							{/if}
+							<span class="muted">· {describeRole(credit)}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
 	</article>
 
 	<ConfirmDialog
 		open={confirming}
 		title={`Delete ${person.name}?`}
-		message="This person will be permanently deleted."
+		message={creditedMovies(person) > 0
+			? `${person.name} is credited on ${creditedMovies(person) === 1 ? 'a movie' : `${creditedMovies(person)} movies`}. Remove those credits first.`
+			: 'This person will be permanently deleted.'}
 		confirmLabel="Delete person"
 		{busy}
 		error={confirmError}
@@ -158,6 +195,32 @@
 	.title-row .actions {
 		display: flex;
 		gap: 0.5rem;
+	}
+
+	.credits-section {
+		display: grid;
+		gap: 0.5rem;
+		margin-top: 1rem;
+	}
+
+	.credits-section h2 {
+		margin: 0;
+	}
+
+	.credits {
+		display: grid;
+		gap: 0.25rem;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.credits li {
+		display: flex;
+		gap: 0.4rem;
+		flex-wrap: wrap;
+		padding: 0.4rem 0;
+		border-bottom: 1px solid var(--border);
 	}
 
 	.bio {

@@ -14,13 +14,8 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 /**
- * Serves image bytes over plain HTTP GET (docs/DECISIONS.md, PLAN.md §3 decision 3): GraphQL
- * returns the URL, and the browser loads it like any image. Bytes are streamed from media over
- * gRPC straight into the response, one chunk at a time.
- *
- * Each upload gets a new artwork ID, so the bytes behind a URL never change and successful
- * responses can be cached for a year. Errors are never cached, including ones that happen after
- * the success headers were prepared but before anything was sent.
+ * Serves images over plain GET so the browser can cache them. Each upload gets a new ID, so
+ * successful responses are cached for a year; errors are never cached.
  */
 @RestController
 class MediaController(private val media: MediaClient) {
@@ -37,8 +32,7 @@ class MediaController(private val media: MediaClient) {
             "thumb" -> ArtworkVariant.ARTWORK_VARIANT_THUMBNAIL
             else -> return error(response, HttpServletResponse.SC_BAD_REQUEST)
         }
-        // The gRPC call runs in a cancellable context, so stopping early (an error, or the browser
-        // going away) cancels it and media stops reading the file.
+        // Cancelling the context stops the gRPC call if we stop early.
         val download = Context.current().withCancellation()
         try {
             download.run { relay(id, variant, grpcVariant, response) }
@@ -60,12 +54,11 @@ class MediaController(private val media: MediaClient) {
             stream.forEachRemaining { it.chunk.writeTo(out) }
         } catch (e: StatusRuntimeException) {
             if (response.isCommitted) {
-                // Headers and some bytes are already on their way, so the only honest signal left is
-                // a truncated response: rethrowing aborts it, and the short body is never cached.
+                // Bytes were already sent, so abort the response; a short body is never cached.
                 log.warn("Artwork {} failed part-way through the download: {}", id, e.status)
                 throw e
             }
-            // Nothing sent yet: drop the cache headers set above, so the error is never cached.
+            // Nothing sent yet: drop the cache headers.
             response.reset()
             error(response, statusFor(e, id))
         }
@@ -73,7 +66,6 @@ class MediaController(private val media: MediaClient) {
 
     private fun statusFor(e: StatusRuntimeException, id: String): Int =
         when (e.status.code) {
-            // A malformed ID cannot name an image either, so both are simply "not found".
             Status.Code.NOT_FOUND, Status.Code.INVALID_ARGUMENT -> HttpServletResponse.SC_NOT_FOUND
             Status.Code.UNAVAILABLE, Status.Code.DEADLINE_EXCEEDED -> HttpServletResponse.SC_SERVICE_UNAVAILABLE
             else -> {

@@ -1,13 +1,12 @@
 package com.moviecatalog.media.artwork
 
+import com.moviecatalog.media.config.MediaProperties
 import org.slf4j.LoggerFactory
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
-
-/** A stored file ready to stream: the metadata row plus the path of the requested variant. */
-class StoredFile(val artwork: Artwork, val path: Path, val sizeBytes: Long)
 
 @Service
 class ArtworkService(
@@ -18,18 +17,15 @@ class ArtworkService(
     private val log = LoggerFactory.getLogger(javaClass)
     private val inspector = ImageInspector(properties.maxWidth, properties.maxHeight)
 
-    /**
-     * Validates a fully received upload and stores it. Files are moved into place before the row is
-     * written, so a row never points at missing files; if the insert fails the files are removed.
-     * The temporary upload is always deleted.
-     */
+    /** Files are moved into place before the row is written, so a row never points at missing files. */
     fun store(upload: Path, sizeBytes: Long, sha256: String): Artwork {
         try {
             val inspected = inspector.inspect(upload)
             val id = UUID.randomUUID()
             storage.store(id, upload, ImageInspector.thumbnail(inspected, properties.thumbnailWidth), inspected.format)
             try {
-                return repository.insert(id, inspected.format, sizeBytes, inspected.image.width, inspected.image.height, sha256)
+                // The id is assigned, so save() merges and checks for an existing row first.
+                return repository.save(Artwork(id, inspected.format, sizeBytes, inspected.image.width, inspected.image.height, sha256))
             } catch (e: RuntimeException) {
                 storage.delete(id)
                 throw e
@@ -40,7 +36,7 @@ class ArtworkService(
     }
 
     fun open(id: UUID, variant: ArtworkVariant): StoredFile {
-        val artwork = repository.findById(id) ?: throw ArtworkNotFoundException("Artwork $id not found")
+        val artwork = repository.findByIdOrNull(id) ?: throw ArtworkNotFoundException("Artwork $id not found")
         val path = storage.path(id, variant, artwork.format)
         if (!Files.exists(path)) {
             log.error("Artwork {} has a metadata row but no {} file at {}", id, variant, path)
@@ -49,9 +45,9 @@ class ArtworkService(
         return StoredFile(artwork, path, Files.size(path))
     }
 
-    /** Safe to repeat: deleting missing artwork succeeds and reports that nothing existed. */
+    /** Safe to repeat: deleting missing artwork returns false. */
     fun delete(id: UUID): Boolean {
-        val existed = repository.delete(id)
+        val existed = repository.removeById(id) > 0
         storage.delete(id)
         return existed
     }

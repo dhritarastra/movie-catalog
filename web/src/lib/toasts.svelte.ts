@@ -6,7 +6,6 @@ export interface Toast {
 
 let nextId = 1;
 
-/** Short-lived confirmations shown in a corner, for outcomes that outlive the page that caused them. */
 export const toasts = $state<Toast[]>([]);
 
 export function showToast(kind: Toast['kind'], message: string, durationMs = 4000) {

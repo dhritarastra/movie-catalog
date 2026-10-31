@@ -5,7 +5,6 @@ import { UploadArtworkMutation } from './operations';
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const ACCEPTED_TYPES = ['image/jpeg', 'image/png'];
 
-/** Checks done in the browser for quick feedback. The servers enforce the same rules regardless. */
 export function checkFile(file: File): string | null {
 	if (!ACCEPTED_TYPES.includes(file.type)) return 'Choose a JPEG or PNG image.';
 	if (file.size === 0) return 'That file is empty.';
@@ -14,22 +13,17 @@ export function checkFile(file: File): string | null {
 }
 
 export interface UploadCallbacks {
-	/** Fraction of the file sent so far, from 0 to 1. */
 	onProgress(fraction: number): void;
-	/** Every byte has been sent; the servers are now validating, storing and attaching it. */
+	/** Every byte is sent; the server is still processing it. */
 	onProcessing(): void;
 }
 
 export interface UploadHandle {
 	result: Promise<MovieDetailFieldsFragment>;
-	/** Stops the transfer. Only meaningful before onProcessing; after that the server may already be storing it. */
 	cancel(): void;
 }
 
-/**
- * Sends artwork as a GraphQL multipart request (the spec's `operations`, `map` and file parts).
- * XMLHttpRequest is used instead of fetch because fetch cannot report upload progress.
- */
+/** Uses XMLHttpRequest because fetch cannot report upload progress. */
 export function uploadArtwork(
 	movieId: string,
 	version: number,

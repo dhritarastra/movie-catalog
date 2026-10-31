@@ -10,7 +10,7 @@ spring:
           target: ${MEDIA_GRPC_TARGET:localhost:9092}
   servlet:
     multipart:
-      # 5 MiB per file (Spring's MB is 1024 * 1024), plus room for the other multipart parts.
+      # 5 MiB per file, plus room for the other multipart parts.
       max-file-size: 5MB
       max-request-size: 6MB
 server:
@@ -26,3 +26,8 @@ gateway:
   catalog-deadline: 2s
   media-upload-deadline: 30s
   media-download-deadline: 30s
+  media-upload-chunk-bytes: 65536 # 64 KiB
+  multipart-timeout: 60s
+  tmdb:
+    # Optional; leave unset to hide "Find poster on TMDB".
+    api-token: ${TMDB_API_TOKEN:}

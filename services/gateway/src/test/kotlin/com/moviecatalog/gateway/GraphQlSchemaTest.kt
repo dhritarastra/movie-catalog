@@ -6,7 +6,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.graphql.ExecutionGraphQlService
 import org.springframework.graphql.test.tester.ExecutionGraphQlServiceTester
 
-/** The draft schema, including the custom Upload scalar, builds and is served. */
 @SpringBootTest
 class GraphQlSchemaTest(@Autowired graphQlService: ExecutionGraphQlService) {
     private val tester = ExecutionGraphQlServiceTester.create(graphQlService)

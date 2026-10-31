@@ -1,4 +1,7 @@
 <script lang="ts">
+	import TmdbPosterFinder from '#lib/components/TmdbPosterFinder.svelte';
+	import { trackVisit } from '#lib/navigation.ts';
+	import { showToast } from '#lib/toasts.svelte.ts';
 	import { describeError, GraphQlRequestError } from '#lib/graphql/client.ts';
 	import type { MovieDetailFieldsFragment } from '#lib/graphql/generated/graphql.ts';
 	import {
@@ -10,14 +13,15 @@
 
 	interface Props {
 		movieId: string;
-		/** The version the user is looking at; the upload is refused if the movie has changed since. */
 		version: number;
 		hasArtwork: boolean;
+		// Shows "Find poster on TMDB" when the server can look posters up.
+		tmdb?: boolean;
 		onUploaded(movie: MovieDetailFieldsFragment): void;
 		onReload(): void;
 	}
 
-	let { movieId, version, hasArtwork, onUploaded, onReload }: Props = $props();
+	let { movieId, version, hasArtwork, tmdb = false, onUploaded, onReload }: Props = $props();
 
 	type Phase =
 		| { name: 'idle' }
@@ -30,6 +34,7 @@
 	let fileError = $state<string | null>(null);
 	let phase = $state<Phase>({ name: 'idle' });
 	let handle: UploadHandle | null = null;
+	const visit = trackVisit();
 
 	const previewUrl = $derived(file ? URL.createObjectURL(file) : null);
 	$effect(() => {
@@ -41,7 +46,7 @@
 
 	const busy = $derived(phase.name === 'uploading' || phase.name === 'processing');
 	const percent = $derived(phase.name === 'uploading' ? Math.round(phase.progress * 100) : 0);
-	// Announced to screen readers in 25% steps, so they are not flooded with every progress event.
+	// Announce progress in 25% steps rather than every event.
 	const announcement = $derived(
 		phase.name === 'uploading'
 			? `Uploading, ${Math.floor(phase.progress * 4) * 25} percent`
@@ -61,20 +66,31 @@
 
 	async function start() {
 		if (!file || busy) return;
+		const stillHere = visit.mark();
 		phase = { name: 'uploading', progress: 0 };
 		handle = uploadArtwork(movieId, version, file, {
 			onProgress: (progress) => {
-				if (phase.name === 'uploading') phase = { name: 'uploading', progress };
+				if (stillHere() && phase.name === 'uploading') phase = { name: 'uploading', progress };
 			},
-			onProcessing: () => (phase = { name: 'processing' })
+			onProcessing: () => {
+				if (stillHere()) phase = { name: 'processing' };
+			}
 		});
 		try {
 			const movie = await handle.result;
+			if (!stillHere()) {
+				showToast('success', 'Artwork updated.');
+				return;
+			}
 			file = null;
 			if (input) input.value = '';
 			phase = { name: 'idle' };
 			onUploaded(movie);
 		} catch (error) {
+			if (!stillHere()) {
+				showToast('error', `Artwork upload: ${describeError(error)}`);
+				return;
+			}
 			if (error instanceof DOMException && error.name === 'AbortError') {
 				phase = { name: 'idle' };
 			} else {
@@ -86,7 +102,7 @@
 				};
 			}
 		} finally {
-			handle = null;
+			if (stillHere()) handle = null;
 		}
 	}
 </script>
@@ -112,6 +128,9 @@
 				? `${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`
 				: 'No file chosen'}</span
 		>
+		{#if tmdb}
+			<TmdbPosterFinder {movieId} {version} disabled={busy} {onUploaded} {onReload} />
+		{/if}
 	</div>
 	{#if fileError}<p class="error" id="artwork-file-error" role="alert">{fileError}</p>{/if}
 

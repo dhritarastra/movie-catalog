@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
 	import { localToday } from '#lib/format.ts';
+	import { describeError } from '#lib/graphql/client.ts';
+	import { trackVisit } from '#lib/navigation.ts';
+	import { showToast } from '#lib/toasts.svelte.ts';
 	import { saveFailure, type SaveFailure } from '#lib/forms.ts';
 	import type { ResolvedPathname } from '$app/types';
 	import type { PersonInput } from '#lib/graphql/generated/graphql.ts';
@@ -12,13 +15,10 @@
 	}
 
 	interface Props {
-		/** Starting values: empty when adding, the stored person when editing. */
 		initial?: PersonFormValues;
 		submitLabel: string;
 		cancelHref: ResolvedPathname;
-		/** Saves the input; a rejection is shown as field errors or a message. */
 		onSubmit(input: PersonInput): Promise<void>;
-		/** Offered after a conflict, so the user can load the latest version (losing these edits). */
 		onReload?(): void;
 	}
 
@@ -27,7 +27,6 @@
 	const FIELDS = ['name', 'birthDate', 'bio'];
 	const EARLIEST_BIRTH = '1800-01-01';
 
-	// Copied once, like MovieForm: the form owns its values after it is created.
 	const start = untrack(() => initial);
 	let name = $state(start?.name ?? '');
 	let birthDate = $state(start?.birthDate ?? '');
@@ -38,13 +37,14 @@
 	let errors = $state<Record<string, string>>({});
 	let formError = $state<{ message: string; conflict: boolean } | null>(null);
 	let alert: HTMLElement | undefined = $state();
+	let form: HTMLFormElement | undefined = $state();
+	const visit = trackVisit();
 
-	/** Mirrors the catalog's rules for instant feedback; the catalog still has the final say. */
+	/** Quick checks in the browser; the server has the final say. */
 	function validate(): Record<string, string> {
 		const found: Record<string, string> = {};
 		if (!name.trim()) found.name = 'Enter a name.';
 		else if (name.trim().length > 200) found.name = 'Use at most 200 characters.';
-		// ISO dates compare correctly as strings.
 		if (birthDate && birthDate < EARLIEST_BIRTH)
 			found.birthDate = 'Enter a date from 1800 onwards.';
 		else if (birthDate && birthDate > today)
@@ -59,38 +59,44 @@
 		errors = validate();
 		formError = null;
 		if (Object.keys(errors).length > 0) {
-			document.getElementById(Object.keys(errors)[0])?.focus();
+			form?.querySelector<HTMLElement>(`#${Object.keys(errors)[0]}`)?.focus();
 			return;
 		}
-		// The fields are locked until the save finishes, as in MovieForm.
 		saving = true;
+		const stillHere = visit.mark();
+		const subject = name.trim();
 		let failure: SaveFailure | null = null;
 		try {
-			// Every editable field is sent: updates replace the whole record (DECISIONS D5).
 			await onSubmit({ name, birthDate: birthDate || null, bio: bio || null });
 		} catch (error) {
+			if (!stillHere()) {
+				showToast('error', `Save for “${subject}”: ${describeError(error)}`);
+				return;
+			}
 			failure = saveFailure(
 				error,
 				FIELDS,
 				'Someone else changed this person while you were editing. Reload to see the latest version; your changes here will be lost.'
 			);
 		} finally {
-			saving = false;
+			if (stillHere()) saving = false;
 		}
-		if (failure) await showFailure(failure);
+		if (failure && stillHere()) await showFailure(failure, stillHere);
 	}
 
-	/** Locking the fields took focus off the form, so focus goes back to what needs attention. */
-	async function showFailure(failure: SaveFailure) {
+	/** The locked fields lost focus, so move it to the problem. */
+	async function showFailure(failure: SaveFailure, stillHere: () => boolean) {
 		if (failure.kind === 'fields') errors = failure.errors;
 		else formError = failure;
 		await tick();
-		if (failure.kind === 'fields') document.getElementById(Object.keys(errors)[0])?.focus();
+		if (!stillHere()) return;
+		if (failure.kind === 'fields')
+			form?.querySelector<HTMLElement>(`#${Object.keys(errors)[0]}`)?.focus();
 		else alert?.focus();
 	}
 </script>
 
-<form class="panel form" onsubmit={submit} novalidate aria-busy={saving}>
+<form bind:this={form} class="panel form" onsubmit={submit} novalidate aria-busy={saving}>
 	{#if formError}
 		<div class="alert" role="alert" tabindex="-1" bind:this={alert}>
 			<p>{formError.message}</p>
