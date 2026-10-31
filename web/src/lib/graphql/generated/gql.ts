@@ -18,7 +18,9 @@ type Documents = {
     "\n\tfragment MovieCardFields on Movie {\n\t\tid\n\t\ttitle\n\t\treleaseDate\n\t\tgenres\n\t\tthumbnailUrl: artworkUrl(variant: THUMBNAIL)\n\t}\n": typeof types.MovieCardFieldsFragmentDoc,
     "\n\tquery Movies($page: PageInput) {\n\t\tmovies(page: $page) {\n\t\t\ttotalCount\n\t\t\toffset\n\t\t\tlimit\n\t\t\titems {\n\t\t\t\t...MovieCardFields\n\t\t\t}\n\t\t}\n\t}\n": typeof types.MoviesDocument,
     "\n\tfragment MovieDetailFields on Movie {\n\t\tid\n\t\ttitle\n\t\tsynopsis\n\t\treleaseDate\n\t\truntimeMinutes\n\t\tgenres\n\t\tversion\n\t\tartworkUrl(variant: FULL)\n\t}\n": typeof types.MovieDetailFieldsFragmentDoc,
-    "\n\tquery Movie($id: ID!) {\n\t\tmovie(id: $id) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": typeof types.MovieDocument,
+    "\n\tquery Movie($id: ID!) {\n\t\tmovie(id: $id) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t\ttmdbPostersEnabled\n\t}\n": typeof types.MovieDocument,
+    "\n\tquery FindTmdbPoster($movieId: ID!) {\n\t\ttmdbPoster(movieId: $movieId) {\n\t\t\ttmdbId\n\t\t\ttitle\n\t\t\treleaseYear\n\t\t\tpreviewUrl\n\t\t}\n\t}\n": typeof types.FindTmdbPosterDocument,
+    "\n\tmutation UseTmdbPoster($movieId: ID!, $version: Int!, $tmdbId: Int!) {\n\t\tuseTmdbPoster(movieId: $movieId, version: $version, tmdbId: $tmdbId) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": typeof types.UseTmdbPosterDocument,
     "\n\tmutation CreateMovie($input: MovieInput!) {\n\t\tcreateMovie(input: $input) {\n\t\t\tid\n\t\t}\n\t}\n": typeof types.CreateMovieDocument,
     "\n\tmutation UpdateMovie($id: ID!, $version: Int!, $input: MovieInput!) {\n\t\tupdateMovie(id: $id, version: $version, input: $input) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": typeof types.UpdateMovieDocument,
     "\n\tmutation DeleteMovie($id: ID!, $version: Int!) {\n\t\tdeleteMovie(id: $id, version: $version)\n\t}\n": typeof types.DeleteMovieDocument,
@@ -42,7 +44,9 @@ const documents: Documents = {
     "\n\tfragment MovieCardFields on Movie {\n\t\tid\n\t\ttitle\n\t\treleaseDate\n\t\tgenres\n\t\tthumbnailUrl: artworkUrl(variant: THUMBNAIL)\n\t}\n": types.MovieCardFieldsFragmentDoc,
     "\n\tquery Movies($page: PageInput) {\n\t\tmovies(page: $page) {\n\t\t\ttotalCount\n\t\t\toffset\n\t\t\tlimit\n\t\t\titems {\n\t\t\t\t...MovieCardFields\n\t\t\t}\n\t\t}\n\t}\n": types.MoviesDocument,
     "\n\tfragment MovieDetailFields on Movie {\n\t\tid\n\t\ttitle\n\t\tsynopsis\n\t\treleaseDate\n\t\truntimeMinutes\n\t\tgenres\n\t\tversion\n\t\tartworkUrl(variant: FULL)\n\t}\n": types.MovieDetailFieldsFragmentDoc,
-    "\n\tquery Movie($id: ID!) {\n\t\tmovie(id: $id) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": types.MovieDocument,
+    "\n\tquery Movie($id: ID!) {\n\t\tmovie(id: $id) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t\ttmdbPostersEnabled\n\t}\n": types.MovieDocument,
+    "\n\tquery FindTmdbPoster($movieId: ID!) {\n\t\ttmdbPoster(movieId: $movieId) {\n\t\t\ttmdbId\n\t\t\ttitle\n\t\t\treleaseYear\n\t\t\tpreviewUrl\n\t\t}\n\t}\n": types.FindTmdbPosterDocument,
+    "\n\tmutation UseTmdbPoster($movieId: ID!, $version: Int!, $tmdbId: Int!) {\n\t\tuseTmdbPoster(movieId: $movieId, version: $version, tmdbId: $tmdbId) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": types.UseTmdbPosterDocument,
     "\n\tmutation CreateMovie($input: MovieInput!) {\n\t\tcreateMovie(input: $input) {\n\t\t\tid\n\t\t}\n\t}\n": types.CreateMovieDocument,
     "\n\tmutation UpdateMovie($id: ID!, $version: Int!, $input: MovieInput!) {\n\t\tupdateMovie(id: $id, version: $version, input: $input) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n": types.UpdateMovieDocument,
     "\n\tmutation DeleteMovie($id: ID!, $version: Int!) {\n\t\tdeleteMovie(id: $id, version: $version)\n\t}\n": types.DeleteMovieDocument,
@@ -78,7 +82,15 @@ export function graphql(source: "\n\tfragment MovieDetailFields on Movie {\n\t\t
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n\tquery Movie($id: ID!) {\n\t\tmovie(id: $id) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n"): typeof import('./graphql').MovieDocument;
+export function graphql(source: "\n\tquery Movie($id: ID!) {\n\t\tmovie(id: $id) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t\ttmdbPostersEnabled\n\t}\n"): typeof import('./graphql').MovieDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tquery FindTmdbPoster($movieId: ID!) {\n\t\ttmdbPoster(movieId: $movieId) {\n\t\t\ttmdbId\n\t\t\ttitle\n\t\t\treleaseYear\n\t\t\tpreviewUrl\n\t\t}\n\t}\n"): typeof import('./graphql').FindTmdbPosterDocument;
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n\tmutation UseTmdbPoster($movieId: ID!, $version: Int!, $tmdbId: Int!) {\n\t\tuseTmdbPoster(movieId: $movieId, version: $version, tmdbId: $tmdbId) {\n\t\t\t...MovieDetailFields\n\t\t}\n\t}\n"): typeof import('./graphql').UseTmdbPosterDocument;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

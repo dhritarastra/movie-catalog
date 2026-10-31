@@ -30,6 +30,7 @@
 	const id = $derived(page.params.id ?? '');
 	let view = $state<View>({ status: 'loading' });
 	let attempt = $state(0);
+	let tmdbEnabled = $state(false);
 
 	$effect(() => {
 		const movieId = id;
@@ -40,10 +41,10 @@
 		confirmError = null;
 		view = { status: 'loading' };
 		request(MovieQuery, { id: movieId }, { signal: controller.signal })
-			.then(
-				(data) =>
-					(view = data.movie ? { status: 'ready', movie: data.movie } : { status: 'not-found' })
-			)
+			.then((data) => {
+				tmdbEnabled = data.tmdbPostersEnabled;
+				view = data.movie ? { status: 'ready', movie: data.movie } : { status: 'not-found' };
+			})
 			.catch((error) => {
 				if (error?.name !== 'AbortError')
 					view = { status: 'error', message: describeReadError(error) };
@@ -180,6 +181,7 @@
 				movieId={movie.id}
 				version={movie.version}
 				hasArtwork={!!movie.artworkUrl}
+				tmdb={tmdbEnabled}
 				onUploaded={uploaded}
 				onReload={() => attempt++}
 			/>

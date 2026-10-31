@@ -72,6 +72,19 @@ the same reset lets you start again. During local development,
 `cd web && SEED_URL=http://localhost:8080/graphql npm run seed` does the same against the gateway
 (add `TMDB_API_TOKEN=...` in front for real posters).
 
+### Posters from TMDB
+
+With the same token, a movie's "Add artwork" section offers **Find poster on TMDB**. The gateway
+searches TMDB by the movie's title and release year and shows the poster it finds; the user checks
+it and chooses **Use this poster**, which attaches it exactly like an uploaded image. Start the
+stack with the token in the environment to turn it on:
+
+```bash
+TMDB_API_TOKEN=<your token> docker compose up --build --wait
+```
+
+Without a token the button is hidden. The token stays on the server; the browser never sees it.
+
 This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## Develop locally

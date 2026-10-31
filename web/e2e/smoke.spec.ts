@@ -57,6 +57,11 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 	});
 
 	await test.step('uploading artwork shows it on the page', async () => {
+		// The TMDB button only shows when the gateway has a token.
+		const tmdb = page.getByRole('button', { name: 'Find poster on TMDB' });
+		if (process.env.TMDB_API_TOKEN) await expect(tmdb).toBeVisible();
+		else await expect(tmdb).toHaveCount(0);
+
 		await chooseFile(page, 'poster.png', 'image/png', png(600, 900));
 		await expect(page.getByAltText('Preview of poster.png')).toBeVisible();
 		await page.getByRole('button', { name: 'Upload', exact: true }).click();
