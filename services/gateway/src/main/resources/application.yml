@@ -28,3 +28,6 @@ gateway:
   media-download-deadline: 30s
   media-upload-chunk-bytes: 65536 # 64 KiB
   multipart-timeout: 60s
+  tmdb:
+    # Optional; leave unset to hide "Find poster on TMDB".
+    api-token: ${TMDB_API_TOKEN:}

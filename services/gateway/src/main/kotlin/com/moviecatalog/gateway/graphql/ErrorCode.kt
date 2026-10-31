@@ -12,5 +12,8 @@ enum class ErrorCode : ErrorClassification {
 
     // A service did not answer in time; a mutation may or may not have happened.
     SERVICE_UNAVAILABLE,
+
+    // TMDB failed; nothing was changed.
+    TMDB_UNAVAILABLE,
     INTERNAL_ERROR,
 }
