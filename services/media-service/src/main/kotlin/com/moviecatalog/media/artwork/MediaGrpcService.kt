@@ -21,7 +21,6 @@ import java.util.UUID
 import com.moviecatalog.media.v1.Artwork as ArtworkProto
 import com.moviecatalog.media.v1.ArtworkVariant as ArtworkVariantProto
 
-/** gRPC endpoint for artwork. Unary errors are mapped by [MediaGrpcExceptionHandler]. */
 @Service
 class MediaGrpcService(
     private val artwork: ArtworkService,
@@ -38,8 +37,7 @@ class MediaGrpcService(
         val variant = if (request.variant == ArtworkVariantProto.ARTWORK_VARIANT_THUMBNAIL) ArtworkVariant.THUMBNAIL else ArtworkVariant.FULL
         val id = parseId(request.id)
         val file = artwork.open(id, variant)
-        // Opened before anything is sent, so a missing or unreadable file fails the whole call
-        // cleanly rather than part-way through a response the gateway has started relaying.
+        // Open the file before sending anything, so a missing file fails the call cleanly.
         val input = try {
             Files.newInputStream(file.path)
         } catch (e: NoSuchFileException) {

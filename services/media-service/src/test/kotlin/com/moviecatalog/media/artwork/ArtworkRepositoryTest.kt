@@ -21,7 +21,6 @@ import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import javax.sql.DataSource
 
-/** The entity mapping against the real schema: Flyway's migration, the content-type column and constraints. */
 @DataJpaTest
 @Import(TestcontainersConfiguration::class)
 class ArtworkRepositoryTest(
@@ -57,7 +56,7 @@ class ArtworkRepositoryTest(
     @Test
     fun `removing reports one row the first time and none the second`() {
         val id = UUID.randomUUID()
-        // Committed from another connection, so that connection can see the row below.
+        // Committed on another connection, so that connection can see it.
         dataSource.connection.use {
             it.prepareStatement("INSERT INTO artwork (id, content_type, size_bytes, width, height, sha256) VALUES (?, 'image/png', 1, 1, 1, '00')")
                 .apply { setObject(1, id) }.executeUpdate()
@@ -68,11 +67,7 @@ class ArtworkRepositoryTest(
         assertThat(repository.findById(id)).isEmpty()
     }
 
-    /**
-     * Two requests deleting the same artwork at once. This test runs outside the test transaction
-     * (NOT_SUPPORTED), so each delete commits for real; it creates its own row and removes it at
-     * the end, because nothing is rolled back for it.
-     */
+    // Runs outside the test transaction, so it cleans up after itself.
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     fun `a second delete running at the same time waits for the first, then reports that nothing existed`() {
@@ -83,7 +78,6 @@ class ArtworkRepositoryTest(
             var second: Future<Int>? = null
             val first = transaction.execute {
                 val removed = repository.removeById(id)
-                // The second delete starts while this transaction still holds the row.
                 second = other.submit<Int> { transaction.execute { repository.removeById(id) } }
                 awaitBlockedDelete()
                 removed
@@ -93,7 +87,6 @@ class ArtworkRepositoryTest(
             assertThat(second!!.get(10, TimeUnit.SECONDS)).isZero()
             assertThat(repository.existsById(id)).isFalse()
         } finally {
-            // The worker must have let go of its connection before the cleanup below.
             other.shutdownNow()
             other.awaitTermination(10, TimeUnit.SECONDS)
             dataSource.connection.use {
@@ -102,10 +95,7 @@ class ArtworkRepositoryTest(
         }
     }
 
-    /**
-     * Waits until Postgres reports a delete from artwork in this test's database waiting for
-     * another transaction to finish, which is how a delete waits for a row another one holds.
-     */
+    /** Waits until a delete is blocked on a row lock held by another transaction. */
     private fun awaitBlockedDelete() {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
         while (System.nanoTime() < deadline) {

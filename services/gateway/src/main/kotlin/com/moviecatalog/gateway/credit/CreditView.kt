@@ -3,10 +3,7 @@ package com.moviecatalog.gateway.credit
 import com.moviecatalog.catalog.v1.Credit as CreditProto
 import com.moviecatalog.catalog.v1.CreditType as CreditTypeProto
 
-/**
- * The GraphQL `Credit` as data. The movie and person are resolved by CreditController's batch
- * mappings from [movieId] and [personId], so a page of credits costs one call for each, not one per credit.
- */
+/** Movie and person are resolved from the IDs by CreditController's batch mappings. */
 data class CreditView(
     val id: String,
     val type: CreditType,
@@ -34,6 +31,5 @@ private fun CreditTypeProto.toView(): CreditType =
         CreditTypeProto.CREDIT_TYPE_DIRECTOR -> CreditType.DIRECTOR
         CreditTypeProto.CREDIT_TYPE_WRITER -> CreditType.WRITER
         CreditTypeProto.CREDIT_TYPE_PRODUCER -> CreditType.PRODUCER
-        // The catalog never stores a credit without a role.
         CreditTypeProto.CREDIT_TYPE_UNSPECIFIED, CreditTypeProto.UNRECOGNIZED -> error("A credit from the catalog has no role")
     }

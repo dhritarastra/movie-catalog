@@ -1,5 +1,3 @@
-// Shared gRPC contracts. Generates Java message classes and gRPC stubs that the
-// services depend on, so client and server always compile against the same .proto files.
 plugins {
     id("movie-catalog.grpc-contracts")
 }

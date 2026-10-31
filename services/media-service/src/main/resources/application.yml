@@ -6,28 +6,24 @@ spring:
     username: ${MEDIA_DB_USER:media}
     password: ${MEDIA_DB_PASSWORD:media}
     hikari:
-      # Milliseconds. Fail fast when the database is unreachable, so health reports it
-      # within seconds rather than after the 30s default.
+      # Fail fast so health reports a lost database within seconds.
       connection-timeout: 5000
   jpa:
     hibernate:
-      # Flyway owns the schema; Hibernate only checks that the entities match it at startup.
+      # Flyway owns the schema; Hibernate only checks it.
       ddl-auto: validate
   grpc:
     server:
       port: ${MEDIA_GRPC_PORT:9092}
       health:
         schedule:
-          # Refresh the gRPC health status from application health (database included).
           delay: 2s
           period: 5s
 
 media:
-  # Original images and thumbnails, one folder per artwork ID.
   storage-dir: ${MEDIA_STORAGE_DIR:./media-data}
   max-upload-bytes: 5242880 # 5 MiB
   max-width: 8000
   max-height: 8000
   thumbnail-width: 400
-  # Downloads stream in chunks this size; valid sizes are 1 byte to 1 MiB (below gRPC's 4 MiB message limit).
   download-chunk-bytes: 65536 # 64 KiB

@@ -10,7 +10,6 @@ import com.moviecatalog.catalog.person.PersonRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
-/** Finds movies by title and people by name, best match first; see SearchRepository. */
 @Service
 @Transactional(readOnly = true)
 class SearchService(
@@ -31,7 +30,7 @@ class SearchService(
         val matches = search.search(text, limit)
         val moviesById = movies.findAllById(matches.idsOf(SearchKind.MOVIE)).associateBy { it.id }
         val peopleById = people.findAllById(matches.idsOf(SearchKind.PERSON)).associateBy { it.id }
-        // Kept in rank order. A record deleted between the two queries is simply left out.
+        // Keeps rank order; anything deleted in between is skipped.
         return matches.mapNotNull { match ->
             when (match.kind) {
                 SearchKind.MOVIE -> moviesById[match.id]?.let { SearchHit.OfMovie(it) }
@@ -43,7 +42,7 @@ class SearchService(
     private fun List<SearchMatch>.idsOf(kind: SearchKind) = filter { it.kind == kind }.map { it.id }
 
     private companion object {
-        // A query longer than the longest title or name could never match.
+        // A longer query cannot match any title or name.
         val QUERY_MAX = maxOf(MovieInput.TITLE_MAX, PersonInput.NAME_MAX)
     }
 }

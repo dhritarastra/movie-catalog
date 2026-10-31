@@ -1,5 +1,3 @@
-// A Spring Boot service: Kotlin, Spring Boot's managed versions, the shared gRPC contracts,
-// and the test libraries every service uses.
 plugins {
     id("movie-catalog.kotlin")
     id("org.jetbrains.kotlin.plugin.spring")

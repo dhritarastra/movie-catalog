@@ -1,9 +1,5 @@
 import type { TypedDocumentString } from './generated/graphql';
 
-/**
- * The `extensions.code` values the gateway sends (services/gateway ErrorCode.kt), plus
- * NETWORK for failures before any GraphQL response arrived.
- */
 export type ErrorCode =
 	| 'BAD_REQUEST'
 	| 'NOT_FOUND'
@@ -19,7 +15,6 @@ export interface FieldError {
 	message: string;
 }
 
-/** A failed GraphQL call, with what the UI needs to react: a code, a message and field errors. */
 export class GraphQlRequestError extends Error {
 	constructor(
 		message: string,
@@ -30,7 +25,6 @@ export class GraphQlRequestError extends Error {
 		this.name = 'GraphQlRequestError';
 	}
 
-	/** Field errors keyed by field name, for showing next to form inputs. */
 	fieldMessages(): Record<string, string> {
 		return Object.fromEntries(this.fieldErrors.map((e) => [e.field, e.message]));
 	}
@@ -46,7 +40,7 @@ interface GraphQlResponseJson<T> {
 	errors?: GraphQlErrorJson[];
 }
 
-/** Sends one operation as JSON. GraphQL reports errors with HTTP 200, so the body is always checked. */
+/** GraphQL reports errors with HTTP 200, so the body is always checked. */
 export async function request<TResult, TVariables>(
 	document: TypedDocumentString<TResult, TVariables>,
 	variables?: TVariables,
@@ -71,7 +65,6 @@ export async function request<TResult, TVariables>(
 	return parseResponse<TResult>(response.status, await response.text());
 }
 
-/** Shared by fetch and XHR callers: turns a status and body into data or a [GraphQlRequestError]. */
 export function parseResponse<TResult>(status: number, text: string): TResult {
 	let body: GraphQlResponseJson<TResult>;
 	try {
@@ -100,7 +93,6 @@ export function parseResponse<TResult>(status: number, text: string): TResult {
 	return body.data;
 }
 
-/** A message for errors that are not about a specific field. */
 export function describeError(error: unknown): string {
 	if (error instanceof GraphQlRequestError) {
 		switch (error.code) {
@@ -115,10 +107,7 @@ export function describeError(error: unknown): string {
 	return 'Something went wrong. Please try again.';
 }
 
-/**
- * Like describeError, for a failed read such as loading a page or a search: nothing was being
- * saved, so a timeout asks the user to try again rather than to check whether a change was saved.
- */
+/** For failed reads: nothing was being saved, so a timeout just asks to try again. */
 export function describeReadError(error: unknown): string {
 	if (error instanceof GraphQlRequestError && error.code === 'SERVICE_UNAVAILABLE') {
 		return 'The server did not respond in time. Try again.';

@@ -35,7 +35,7 @@ class ImageInspectorTest {
 
     @Test
     fun `rejects huge declared dimensions from the header without decoding the pixels`() {
-        // 100,000 x 100,000 RGBA would need about 40 GB to decode; the file itself is 33 bytes.
+        // Would need about 40 GB to decode; the file is 33 bytes.
         val bomb = file(TestImages.pngHeaderClaiming(100_000, 100_000))
 
         val error = assertThrows<InvalidArtworkException> { inspector.inspect(bomb) }

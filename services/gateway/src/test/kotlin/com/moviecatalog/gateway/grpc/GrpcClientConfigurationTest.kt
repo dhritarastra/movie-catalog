@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 
-/** Stubs for one service share a channel, so the gateway keeps one connection per downstream service. */
 @SpringBootTest
 class GrpcClientConfigurationTest(
     @Autowired private val movies: MovieServiceGrpc.MovieServiceBlockingStub,

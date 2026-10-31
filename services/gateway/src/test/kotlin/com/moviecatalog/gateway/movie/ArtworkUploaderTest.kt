@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.Duration
 
-/** The cross-service consistency rules for uploads, with both services mocked. */
 class ArtworkUploaderTest {
     private val catalog = mockk<CatalogClient>()
     private val media = mockk<MediaClient>()

@@ -1,15 +1,12 @@
 package com.moviecatalog.gateway.graphql
 
-/**
- * The same default as `limit: Int = 20` in schema.graphqls, which is part of the API contract.
- * The catalog refuses to start with a catalog.paging.max-limit below this (PagingProperties).
- */
+// Matches the default in schema.graphqls.
 const val DEFAULT_PAGE_SIZE = 20
 
-/** `PageInput` as received. An explicit null offset or limit means the default, like an omitted one. */
+/** A null offset or limit means the default. */
 data class PageInput(val offset: Int?, val limit: Int?)
 
-/** The offset to send to the catalog. Out-of-range values are passed on for the catalog to reject, never adjusted. */
+/** Out-of-range values are passed on for the catalog to reject. */
 fun PageInput?.offsetOrDefault(): Int = this?.offset ?: 0
 
 fun PageInput?.limitOrDefault(): Int = this?.limit ?: DEFAULT_PAGE_SIZE

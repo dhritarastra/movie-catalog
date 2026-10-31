@@ -8,28 +8,19 @@ import org.springframework.graphql.data.method.annotation.Argument
 import org.springframework.graphql.data.method.annotation.QueryMapping
 import org.springframework.stereotype.Controller
 
-/**
- * One search across movie titles and person names, in the catalog's ranked order. Each hit is
- * a MovieView or a PersonView, so the movie and person fields (artworkUrl, credits, ...) resolve
- * exactly as they do elsewhere; SearchResultTypeConfiguration tells GraphQL which is which.
- */
 @Controller
 class SearchController(private val catalog: CatalogClient) {
-    /** An explicit null [limit] means the default, as it does for paging. */
+    /** A null limit means the default. */
     @QueryMapping
     fun search(@Argument query: String, @Argument limit: Int?): List<Any> =
         catalog.search(query, limit ?: DEFAULT_SEARCH_LIMIT).map { hit ->
             when (hit.hitCase) {
                 SearchHit.HitCase.MOVIE -> MovieView.of(hit.movie)
                 SearchHit.HitCase.PERSON -> PersonView.of(hit.person)
-                // The catalog always sets one of the two.
                 SearchHit.HitCase.HIT_NOT_SET, null -> error("A search hit from the catalog is neither a movie nor a person")
             }
         }
 }
 
-/**
- * The same default as `limit: Int = 10` on `search` in schema.graphqls. The catalog refuses to
- * start with a catalog.search.max-limit below this (SearchProperties.CLIENT_LIMIT there).
- */
+// Matches the default in schema.graphqls.
 const val DEFAULT_SEARCH_LIMIT = 10

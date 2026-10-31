@@ -6,11 +6,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.graphql.execution.RuntimeWiringConfigurer
 
-/**
- * Tells GraphQL which member of the `SearchResult` union each hit is. Spring for GraphQL would
- * otherwise look for types named after the classes (MovieView, PersonView), which the schema
- * calls Movie and Person.
- */
+/** Maps MovieView and PersonView to the schema's Movie and Person types in the SearchResult union. */
 @Configuration
 class SearchResultTypeConfiguration {
     @Bean

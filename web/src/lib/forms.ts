@@ -1,15 +1,10 @@
 import { describeError, GraphQlRequestError } from './graphql/client.ts';
 
-/** What a form shows after a failed save: messages next to its fields, or one message for the form. */
 export type SaveFailure =
 	| { kind: 'fields'; errors: Record<string, string> }
 	| { kind: 'form'; message: string; conflict: boolean };
 
-/**
- * Decides how a form presents a failed save. Field errors are shown next to inputs only when
- * the form has every field they name; otherwise (for example an error about the version) they
- * would be invisible, so the message is shown for the whole form instead.
- */
+/** Field errors are shown next to inputs, unless one names a field the form doesn't have. */
 export function saveFailure(
 	error: unknown,
 	formFields: readonly string[],

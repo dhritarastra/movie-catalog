@@ -2,10 +2,7 @@ package com.moviecatalog.gateway.graphql
 
 import graphql.ErrorClassification
 
-/**
- * The `extensions.code` values the web app can rely on. Each one tells the UI
- * what to do: show field errors, reload, explain, or offer a retry.
- */
+/** The `extensions.code` values the web app relies on. */
 enum class ErrorCode : ErrorClassification {
     BAD_REQUEST,
     NOT_FOUND,
@@ -13,7 +10,7 @@ enum class ErrorCode : ErrorClassification {
     FAILED_PRECONDITION,
     RESOURCE_EXHAUSTED,
 
-    /** A downstream service did not answer in time. For a mutation the outcome is unknown. */
+    // A service did not answer in time; a mutation may or may not have happened.
     SERVICE_UNAVAILABLE,
     INTERNAL_ERROR,
 }

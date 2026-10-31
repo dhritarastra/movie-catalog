@@ -21,7 +21,6 @@ import org.springframework.graphql.ExecutionGraphQlService
 import org.springframework.graphql.test.tester.ExecutionGraphQlServiceTester
 import com.moviecatalog.catalog.v1.CreditType as CreditTypeProto
 
-/** The credit mutations and nested credit fields with the catalog mocked: mapping, batching and error codes. */
 @SpringBootTest
 class CreditControllerTest(@Autowired graphQlService: ExecutionGraphQlService) {
     @MockkBean

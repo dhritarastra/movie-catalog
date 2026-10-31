@@ -13,7 +13,6 @@ import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import java.util.UUID
 
-/** The ranked search query against the real schema, collations and LIKE escaping. */
 @DataJpaTest
 @Import(TestcontainersConfiguration::class, SearchRepository::class)
 class SearchRepositoryTest(
@@ -74,8 +73,7 @@ class SearchRepositoryTest(
 
     @Test
     fun `titles and names both use the ICU collation, so folding and order never depend on the database locale`() {
-        // The tests above would also pass on this image's en_US.utf8, so the guarantee is checked
-        // where it is made: a database whose locale is C would not lower "Ë" in a default column.
+        // The columns must not rely on the database locale.
         val collations = jdbc.queryForList(
             "SELECT table_name || '.' || column_name || ' ' || collation_name FROM information_schema.columns " +
                 "WHERE (table_name, column_name) IN (('movie', 'title'), ('person', 'name')) ORDER BY table_name",

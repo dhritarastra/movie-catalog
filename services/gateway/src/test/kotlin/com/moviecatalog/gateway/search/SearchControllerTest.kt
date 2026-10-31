@@ -17,7 +17,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.graphql.ExecutionGraphQlService
 import org.springframework.graphql.test.tester.ExecutionGraphQlServiceTester
 
-/** The search query with the catalog mocked: union resolution, nested fields and error codes. */
 @SpringBootTest
 class SearchControllerTest(@Autowired graphQlService: ExecutionGraphQlService) {
     @MockkBean

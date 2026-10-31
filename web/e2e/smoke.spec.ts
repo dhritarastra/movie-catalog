@@ -1,17 +1,14 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
 import { png } from './images';
 
-/**
- * The browser smoke test: one flow through the whole stack, extended as
- * features arrive. Everything else is covered by faster tests at lower layers.
- */
+// One flow through the whole stack. Everything else is tested at lower levels.
 test('create, edit and delete a movie with artwork, a person and their credits, search for them, with failures explained', async ({
 	page
 }) => {
 	const stamp = Date.now();
 	const title = `Smoke test ${stamp}`;
 	const editedTitle = `${title} (edited)`;
-	// Early in the alphabet, so the person is on the first page of the list even with other data.
+	// Sorts early, so the person is on the first page of the list.
 	const person = `Ada Smoke ${stamp}`;
 	const editedPerson = `${person} Jr`;
 	const creditedTitle = `Smoke credits ${stamp}`;
@@ -32,7 +29,6 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 			});
 		});
 		await page.reload();
-		// Loading saves nothing, so the message must not ask whether a change was saved.
 		await expect(page.getByRole('alert')).toContainText(
 			'The server did not respond in time. Try again.'
 		);
@@ -112,14 +108,13 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await page.getByLabel('Title').fill(editedTitle);
 		await page.getByLabel('Runtime (minutes)').fill('165');
 
-		// While the answer is on its way, nothing can be typed that the save would then discard.
 		const save = await holdResponse(page, 'UpdateMovie');
 		await page.getByRole('button', { name: 'Save changes' }).click();
 		await save.answered;
 		await expect(page.getByLabel('Title')).toBeDisabled();
 		await expect(page.getByLabel('Runtime (minutes)')).toBeDisabled();
 		await expect(page.getByRole('button', { name: 'Saving…' })).toBeDisabled();
-		// A fragment change leaves this form on screen and must not invalidate the save.
+		// A hash change keeps the form on screen and must not cancel the save.
 		await page.evaluate(() => {
 			location.hash = 'saving';
 		});
@@ -148,7 +143,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 	});
 
 	await test.step('leaving while a save is in flight: it is confirmed, but does not pull you back', async () => {
-		// Wait out the earlier "Changes saved." toast, so the one checked below is this save's.
+		// Wait for the earlier toast to go, so the next one is from this save.
 		await expect(page.getByText('Changes saved.')).toHaveCount(0, { timeout: 10_000 });
 		await page.getByRole('link', { name: 'Edit', exact: true }).click();
 		await expect(page.getByLabel('Title')).toHaveValue(`${title} (changed elsewhere)`);
@@ -164,11 +159,10 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 
 		const toast = page.getByText('Changes saved.');
 		await expect(toast).toBeVisible();
-		// A redirect would follow the toast within milliseconds; the toast stays for seconds.
+		// A redirect would happen right after the toast; the toast stays for seconds.
 		await expect(toast).toBeHidden({ timeout: 10_000 });
 		await expect(page).toHaveURL(/\/movies$/);
 
-		// The save itself went through.
 		await page.getByRole('link', { name: new RegExp(title) }).click();
 		await expect(page.getByRole('list', { name: 'Genres' })).toContainText('Thriller');
 	});
@@ -268,12 +262,11 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByText('No cast yet.')).toBeVisible();
 		await expect(page.getByText('No creators yet.')).toBeVisible();
 
-		// 100 people who sort before the smoke person fill the first page of any list of people.
+		// 100 people that sort first fill the first page of the list.
 		const fillers = await createPeople(page, 100, `Aaa Filler ${stamp}`);
 		try {
 			await findBeyondTheFirstPage(page, editedPerson);
 		} finally {
-			// Only needed to fill the first page; removed even if a check above fails.
 			await deletePeople(page, fillers);
 		}
 		await page.getByLabel('Role').selectOption('CAST');
@@ -288,9 +281,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await page.getByRole('button', { name: 'Add credit' }).click();
 		await choosePerson(page, editedPerson);
 		await page.getByLabel('Role').selectOption('DIRECTOR');
-		// Only cast credits have a character, so the field goes away.
 		await expect(page.getByLabel('Character')).toHaveCount(0);
-		// While a form is open, the list's own buttons wait.
 		await expect(
 			page.getByRole('button', { name: `Edit ${editedPerson}'s credit (Cast)` })
 		).toBeDisabled();
@@ -304,14 +295,12 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		const saving = page.getByRole('button', { name: 'Saving…' });
 		await expect(saving).toBeDisabled();
 		await expect(page.getByLabel('Role')).toBeDisabled();
-		// A second click while saving sends nothing.
 		await saving.click({ force: true });
 		save.release();
 		const creators = page.getByRole('list', { name: 'Creators' });
 		await expect(creators).toContainText(editedPerson);
 		await expect(creators).toContainText('Director');
 		expect(adds).toBe(1);
-		// Closing the form returns focus to where it was opened from.
 		await expect(page.getByRole('button', { name: 'Add credit' })).toBeFocused();
 	});
 
@@ -334,7 +323,6 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		const status = page.locator('#personId-status');
 		const chosen = page.getByRole('radio', { name: editedPerson, exact: true });
 
-		// Narrowing the search to their full name keeps them chosen, since they are still listed.
 		const narrowed = page.waitForResponse(
 			(response) =>
 				operationName(response.request()) === 'PersonPicker' &&
@@ -345,12 +333,10 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(chosen).toBeChecked();
 		await expect(status).toContainText(`Chosen: ${editedPerson}.`);
 
-		// While a newer search is on its way, the list on screen is out of date and cannot be used.
 		const held = await holdResponse(page, 'PersonPicker');
 		await search.fill('Somebody else entirely');
 		await held.answered;
 		await expect(chosen).toBeDisabled();
-		// Saving now would use a choice the pending results may drop, so nothing is sent.
 		let earlyAdds = 0;
 		const countEarly = (request: Request) => {
 			if (operationName(request) === 'AddCredit') earlyAdds++;
@@ -364,7 +350,6 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		expect(earlyAdds).toBe(0);
 		held.release();
 
-		// The new list does not show them, so the choice is dropped, and said so.
 		await expect(status).toContainText("No one's name contains “Somebody else entirely”.");
 		await expect(page.locator('#personId-error')).toHaveCount(0);
 		await expect(status).toContainText('Choice cleared.');
@@ -389,7 +374,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await page.getByRole('button', { name: 'Add credit' }).click();
 		const search = page.getByRole('searchbox', { name: 'Person', exact: true });
 
-		// The first search is held, as on a slow connection; a newer one is answered meanwhile.
+		// Hold the first search, as on a slow connection, and answer a newer one.
 		let releaseStale!: () => void;
 		const stale = new Promise<void>((resolve) => (releaseStale = resolve));
 		let markAnswered!: () => void;
@@ -408,7 +393,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 					}
 				});
 			} catch {
-				// The page has abandoned this request, so it may no longer accept an answer.
+				// The page already abandoned this request.
 			} finally {
 				markAnswered();
 			}
@@ -420,7 +405,6 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		);
 		await search.fill('Nobody stale');
 		const heldRequest = await held;
-		// Wait for the newer search's own answer: the person may already be listed from before.
 		const newerText = editedPerson.slice(0, -3);
 		const newer = page.waitForResponse(
 			(response) =>
@@ -432,8 +416,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByRole('radio', { name: editedPerson })).toBeVisible();
 		releaseStale();
 		await staleAnswered;
-		// Once the browser is done with the old request (answered, or abandoned by the page) and
-		// has drawn two frames, an answer it accepted would be on screen.
+		// By now an answer the page accepted would be on screen.
 		await heldRequest.response();
 		await page.evaluate(
 			() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
@@ -442,7 +425,6 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByRole('radio', { name: editedPerson })).toBeVisible();
 		await page.unrouteAll({ behavior: 'wait' });
 
-		// A failed search cannot save a choice from the previous list, and can be retried.
 		await page.getByRole('radio', { name: editedPerson }).check();
 		let failed = false;
 		await page.route('**/graphql', async (route) => {
@@ -473,14 +455,12 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 
 	await test.step('editing a credit replaces its character and billing order', async () => {
 		await page.getByRole('button', { name: `Edit ${editedPerson}'s credit (Cast)` }).click();
-		// The person cannot change, so focus starts on the role.
 		await expect(page.getByLabel('Role')).toBeFocused();
 		await expect(page.getByRole('textbox', { name: 'Person', exact: true })).toHaveValue(
 			editedPerson
 		);
 		await expect(page.getByLabel('Character')).toHaveValue('Louise Banks');
 		await page.getByLabel('Character').fill('Dr. Louise Banks');
-		// An empty or too large billing order is explained before anything is sent.
 		for (const order of ['', '1001']) {
 			await page.getByLabel('Billing order').fill(order);
 			await page.getByRole('button', { name: 'Save credit' }).click();
@@ -505,7 +485,6 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByText('No creators yet.')).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Save credit' })).toHaveCount(0);
 
-		// Put the director credit back for the steps that follow.
 		await page.getByRole('button', { name: 'Add credit' }).click();
 		await choosePerson(page, editedPerson);
 		await page.getByLabel('Role').selectOption('DIRECTOR');
@@ -547,15 +526,13 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		const status = page.locator('#search-status');
 		const results = page.getByRole('list', { name: 'Results' });
 
-		// One request per search: keeping the address in step must not search again.
+		// One request per search.
 		const sent: string[] = [];
 		const record = (request: Request) => {
 			if (operationName(request) === 'Search') sent.push(request.postDataJSON()?.variables?.query);
 		};
 		page.on('request', record);
 		const once = editedPerson.slice(0, -3);
-		// The earlier results may already list the person, so wait for this search's own answer
-		// and its address; a repeated request would have been sent before both.
 		const answered = page.waitForResponse(
 			(response) =>
 				operationName(response.request()) === 'Search' &&
@@ -568,12 +545,11 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		page.off('request', record);
 		expect(sent).toEqual([once]);
 
-		// Typing at a steady pace, about the length of the pause before searching, keeps every key.
 		await box.fill('');
 		await box.pressSequentially(`Smoke ${stamp}`, { delay: 250 });
 		await expect(box).toHaveValue(`Smoke ${stamp}`);
 
-		// An older search is held, as on a slow connection; a newer one is answered meanwhile.
+		// Hold an older search, as on a slow connection, and answer a newer one.
 		let releaseStale!: () => void;
 		const stale = new Promise<void>((resolve) => (releaseStale = resolve));
 		let markAnswered!: () => void;
@@ -594,7 +570,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 					}
 				});
 			} catch {
-				// The page has abandoned this request, so it may no longer accept an answer.
+				// The page already abandoned this request.
 			} finally {
 				markAnswered();
 			}
@@ -615,8 +591,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await newer;
 		releaseStale();
 		await staleAnswered;
-		// Once the browser is done with the old request and has drawn two frames, an answer it
-		// accepted would be on screen.
+		// By now an answer the page accepted would be on screen.
 		await heldRequest.response();
 		await page.evaluate(
 			() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
@@ -625,7 +600,6 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(results).toContainText(editedPerson);
 		await page.unrouteAll({ behavior: 'wait' });
 
-		// A failed search explains itself and can be retried.
 		let failed = false;
 		await page.route('**/graphql', async (route) => {
 			if (failed || operationName(route.request()) !== 'Search') return route.fallback();
@@ -638,7 +612,6 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 			});
 		});
 		await box.fill('Nobody fails');
-		// Nothing was being saved, so the message asks to try again.
 		await expect(page.getByRole('alert')).toContainText('did not respond in time. Try again.');
 		await page.unrouteAll({ behavior: 'wait' });
 		await page.getByRole('button', { name: 'Retry' }).click();
@@ -648,7 +621,7 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 	await test.step('a typed % is matched literally, and a search with no match says so', async () => {
 		const box = page.getByRole('searchbox', { name: 'Search movies and people' });
 		const status = page.locator('#search-status');
-		// As a wildcard, % would match every name and title containing the stamp.
+		// As a wildcard, % would match every name containing the stamp.
 		await box.fill(`${stamp}%`);
 		await expect(status).toContainText(`Nothing matches “${stamp}%”.`);
 		await expect(page).toHaveURL(new RegExp(`/search\\?q=${stamp}%25$`));
@@ -698,14 +671,12 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(dialog).toContainText(`${editedPerson} stays in the catalog.`);
 		await dialog.getByRole('button', { name: 'Remove credit' }).click();
 		await expect(page.getByText('No cast yet.')).toBeVisible();
-		// The removed row's button is gone, so focus goes to the section's own button.
 		await expect(page.getByRole('button', { name: 'Add credit' })).toBeFocused();
 
 		await page.getByRole('button', { name: `Remove ${editedPerson} (Director)` }).click();
 		await page.getByRole('dialog').getByRole('button', { name: 'Remove credit' }).click();
 		await expect(page.getByText('No creators yet.')).toBeVisible();
 
-		// The movie was only needed for the credits.
 		await page.getByRole('button', { name: 'Delete', exact: true }).click();
 		await page.getByRole('dialog').getByRole('button', { name: 'Delete movie' }).click();
 		await expect(page.getByText(`“${creditedTitle}” was deleted.`)).toBeVisible();
@@ -728,26 +699,20 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 	});
 });
 
-/**
- * Opens the credit form while 100 other people sort first, checks that the first page of people
- * does not reach `name`, then finds and chooses them by typing part of the name.
- */
+/** Checks that the person is not on the first page, then finds them by typing part of the name. */
 async function findBeyondTheFirstPage(page: Page, name: string) {
 	await page.getByRole('button', { name: 'Add credit' }).click();
-	// Opening the form moves focus into it.
 	const search = page.getByRole('searchbox', { name: 'Person', exact: true });
 	await expect(search).toBeFocused();
 	await expect(search).toHaveAttribute('maxlength', '200');
 	await expect(page.getByRole('radio').first()).toBeVisible();
-	// The result count is announced with the rest of the search status.
 	await expect(page.locator('#personId-status')).toContainText(/Showing 20 of \d+ people/);
 	const matches = page.getByRole('radiogroup', { name: 'Person matching people' });
 	await expect(matches).toHaveAttribute('aria-required', 'true');
 	await expect(page.getByRole('radio', { name })).toHaveCount(0);
 	await choosePerson(page, name);
 
-	// A trailing space does not change the search, so nothing is sent again. Showing that
-	// nothing is sent takes a wait longer than the form's 250 ms pause before searching.
+	// A trailing space doesn't change the search, so nothing is sent (wait past the 250 ms delay).
 	let searches = 0;
 	const count = (request: Request) => {
 		if (operationName(request) === 'PersonPicker') searches++;
@@ -759,13 +724,11 @@ async function findBeyondTheFirstPage(page: Page, name: string) {
 	expect(searches).toBe(0);
 }
 
-/** Finds a person in the credit form by typing part of their name, then chooses them. */
 async function choosePerson(page: Page, name: string) {
 	await page.getByRole('searchbox', { name: 'Person', exact: true }).fill(name.slice(0, -3));
 	await page.getByRole('radio', { name, exact: true }).check();
 }
 
-/** Adds `count` people named "<prefix> 001", "<prefix> 002", ... through the API; returns their IDs. */
 async function createPeople(page: Page, count: number, prefix: string): Promise<string[]> {
 	const ids: string[] = [];
 	for (let i = 1; i <= count; i++) {
@@ -782,7 +745,6 @@ async function createPeople(page: Page, count: number, prefix: string): Promise<
 	return ids;
 }
 
-/** Deletes people created by createPeople (each still at version 1). */
 async function deletePeople(page: Page, ids: string[]) {
 	for (const id of ids) {
 		const response = await page.request.post('/graphql', {
@@ -792,7 +754,7 @@ async function deletePeople(page: Page, ids: string[]) {
 	}
 }
 
-/** Removes the movie's first credit in `list` through the API, as another browser tab or user would. */
+/** Removes the first credit through the API, as another user would. */
 async function removeCreditElsewhere(page: Page, list: 'cast' | 'creators') {
 	const movieId = new URL(page.url()).pathname.split('/').pop();
 	const credits = await page.request.post('/graphql', {
@@ -805,7 +767,7 @@ async function removeCreditElsewhere(page: Page, list: 'cast' | 'creators') {
 	expect((await removed.json()).data.removeCredit).toBe(id);
 }
 
-/** Changes the movie's title through the API, as another browser tab or user would. */
+/** Renames the movie through the API, as another user would. */
 async function renameElsewhere(page: Page, id: string, newTitle: string) {
 	const graphql = async (query: string, variables: Record<string, unknown>) => {
 		const response = await page.request.post('/graphql', { data: { query, variables } });
@@ -832,11 +794,7 @@ async function renameElsewhere(page: Page, id: string, newTitle: string) {
 	);
 }
 
-/**
- * Delays the answer to the next `operation` request, as a slow connection would. The request
- * reaches the server at once unless an error response is supplied. The page receives the
- * response only when `release()` is called. `answered` resolves once that response is ready.
- */
+/** Holds the response to the next `operation` request until `release()` is called. */
 async function holdResponse(
 	page: Page,
 	operation: string,
@@ -851,7 +809,6 @@ async function holdResponse(
 	await page.route('**/graphql', async (route) => {
 		if (matched || operationName(route.request()) !== operation) return route.fallback();
 		matched = true;
-		// Error cases inject a delayed server response without changing the fixture on the server.
 		const response = error ? undefined : await route.fetch();
 		markAnswered();
 		await released;
@@ -866,11 +823,10 @@ async function holdResponse(
 	return { answered, release };
 }
 
-/** Browser Back/Forward can reuse a detail component even while its modal blocks links. */
+/** Back/Forward can reuse the detail page while its dialog is open. */
 async function checkPendingDeleteNavigation(page: Page, entity: 'movie' | 'person', name: string) {
 	const path = entity === 'movie' ? 'movies' : 'people';
 	const missing = `/${path}/00000000-0000-0000-0000-000000000000`;
-	// Seed a same-route history entry through SvelteKit's normal link interception.
 	await page.evaluate((href) => {
 		const link = document.createElement('a');
 		link.href = href;
@@ -910,7 +866,6 @@ async function checkPendingDeleteNavigation(page: Page, entity: 'movie' | 'perso
 	await page.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click();
 }
 
-/** Both forms must ignore departed-page failures, while still explaining the save outcome. */
 async function checkLateSaveFailures(page: Page, entity: 'movie' | 'person', name: string) {
 	const movie = entity === 'movie';
 	for (const code of ['BAD_REQUEST', 'SERVICE_UNAVAILABLE']) {
@@ -950,13 +905,12 @@ async function checkLateSaveFailures(page: Page, entity: 'movie' | 'person', nam
 	}
 }
 
-/** "UpdateMovie" for a JSON request whose query starts `mutation UpdateMovie(`; null otherwise. */
 function operationName(request: Request): string | null {
 	try {
 		const query: unknown = request.postDataJSON()?.query;
 		return typeof query === 'string' ? (/^\s*\w+\s+(\w+)/.exec(query)?.[1] ?? null) : null;
 	} catch {
-		return null; // multipart uploads are not JSON
+		return null;
 	}
 }
 

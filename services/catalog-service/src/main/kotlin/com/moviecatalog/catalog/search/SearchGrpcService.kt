@@ -10,7 +10,6 @@ import io.grpc.stub.StreamObserver
 import org.springframework.stereotype.Service
 import com.moviecatalog.catalog.v1.SearchHit as SearchHitProto
 
-/** gRPC endpoint for search, shaped like MovieGrpcService. */
 @Service
 class SearchGrpcService(private val search: SearchService) : SearchServiceGrpc.SearchServiceImplBase() {
     override fun search(request: SearchRequest, responseObserver: StreamObserver<SearchResponse>) =

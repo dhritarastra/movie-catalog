@@ -16,7 +16,7 @@ class PagingTest {
         assertThat(first.offset).isZero()
         assertThat(first.pageSize).isEqualTo(1)
 
-        // 7 is not a multiple of 100: an offset page starts exactly where the caller asked.
+        // Not a multiple of the limit.
         val last = paging.of(7, 100, sort)
         assertThat(last.offset).isEqualTo(7)
         assertThat(last.pageSize).isEqualTo(100)

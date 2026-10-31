@@ -5,10 +5,6 @@ import jakarta.validation.ConstraintValidatorContext
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
-/**
- * Checks an [IsoDate] field and explains the exact problem: the format, the earliest date, the
- * latest date or the future. "Today" comes from Bean Validation's clock (ValidationConfiguration).
- */
 class IsoDateValidator : ConstraintValidator<IsoDate, String> {
     private lateinit var min: LocalDate
     private var max: LocalDate? = null

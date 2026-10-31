@@ -8,17 +8,13 @@ import java.util.Random
 import java.util.zip.CRC32
 import javax.imageio.ImageIO
 
-/** Image fixtures generated in code, so tests need no binary files and every edge case is explicit. */
 object TestImages {
     fun png(width: Int, height: Int, noise: Boolean = false): ByteArray = encode(image(width, height, noise, BufferedImage.TYPE_INT_ARGB), "png")
 
     fun jpeg(width: Int, height: Int, noise: Boolean = false): ByteArray =
         encode(image(width, height, noise, BufferedImage.TYPE_INT_RGB), "jpeg")
 
-    /**
-     * A tiny file whose PNG header claims [width] x [height]. Decoding it would try to allocate
-     * width * height pixels, which is why dimensions must be checked before decoding.
-     */
+    /** A tiny PNG whose header claims a huge size. */
     fun pngHeaderClaiming(width: Int, height: Int): ByteArray {
         val ihdr = ByteArrayOutputStream().also { body ->
             DataOutputStream(body).apply {

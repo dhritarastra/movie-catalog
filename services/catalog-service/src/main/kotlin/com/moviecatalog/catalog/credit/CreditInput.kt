@@ -6,11 +6,7 @@ import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Size
 
-/**
- * A credit's editable fields, already trimmed by [normalised], with the rules Bean Validation
- * checks. The limits match the CHECK constraints in V3__create_credit.sql. [type] is null when
- * the caller sent no role (proto3's CREDIT_TYPE_UNSPECIFIED).
- */
+/** [type] is null when the caller sent no role. */
 data class CreditInput(
     @field:NotNull(message = "is required")
     val type: CreditType?,
@@ -22,10 +18,7 @@ data class CreditInput(
     @field:Max(1000, message = "must be between 0 and 1000")
     val billingOrder: Int,
 ) {
-    /**
-     * The rule that involves two fields, which a field annotation cannot see. InputValidator
-     * reports it together with the annotation rules.
-     */
+    /** Rules that involve two fields, which annotations cannot check. */
     fun crossFieldViolations(): List<FieldViolation> =
         if (characterName != null && type != null && type != CreditType.CAST) {
             listOf(FieldViolation("character_name", "only cast credits have a character"))
@@ -34,7 +27,6 @@ data class CreditInput(
         }
 
     companion object {
-        /** Trims the character name and turns a blank one into null. */
         fun normalised(type: CreditType?, characterName: String?, billingOrder: Int) =
             CreditInput(type, characterName?.trim()?.ifEmpty { null }, billingOrder)
     }

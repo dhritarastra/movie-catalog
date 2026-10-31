@@ -3,7 +3,6 @@ package com.moviecatalog.gateway.person
 import com.moviecatalog.gateway.graphql.toIsoString
 import com.moviecatalog.catalog.v1.Person as PersonProto
 
-/** The GraphQL `Person` as data, with unset optional protobuf fields turned back into nulls. */
 data class PersonView(
     val id: String,
     val name: String,

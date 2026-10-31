@@ -29,7 +29,7 @@ class MovieController(
         return MoviePageView(response.moviesList.map(MovieView::of), response.totalCount, offset, limit)
     }
 
-    /** A missing movie is `null`, as the schema allows; a malformed ID is still an error. */
+    /** A missing movie is null; a malformed ID is still an error. */
     @QueryMapping
     fun movie(@Argument id: String): MovieView? =
         try {
@@ -41,15 +41,11 @@ class MovieController(
     @MutationMapping
     fun createMovie(@Argument input: MovieInput): MovieView = MovieView.of(catalog.createMovie(input.toFields()))
 
-    /** Replaces every editable field; fails with CONFLICT if the movie changed since [version] was read. */
     @MutationMapping
     fun updateMovie(@Argument id: String, @Argument version: Int, @Argument input: MovieInput): MovieView =
         MovieView.of(catalog.updateMovie(id, version, input.toFields()))
 
-    /**
-     * Deletes the movie, then its artwork file. The file is deleted only after the catalog has
-     * confirmed, so a failed or uncertain delete never leaves a movie pointing at a missing image.
-     */
+    /** The file is deleted only after the catalog confirms the movie is gone. */
     @MutationMapping
     fun deleteMovie(@Argument id: String, @Argument version: Int): String {
         val deleted = catalog.deleteMovie(id, version)
@@ -57,7 +53,6 @@ class MovieController(
         return deleted.id
     }
 
-    /** Detaches the artwork (with the same version check), then deletes the file it pointed to. */
     @MutationMapping
     fun removeArtwork(@Argument movieId: String, @Argument version: Int): MovieView {
         val change = catalog.clearArtwork(movieId, version)
@@ -75,7 +70,7 @@ class MovieController(
             ),
         )
 
-    /** Image URLs include the artwork ID, so a new upload gets a new URL and old ones can be cached forever. */
+    /** Each upload has a new ID, so old URLs can be cached forever. */
     @SchemaMapping(typeName = "Movie", field = "artworkUrl")
     fun artworkUrl(movie: MovieView, @Argument variant: ArtworkVariant): String? =
         movie.artworkId?.let { "/media/$it?variant=${if (variant == ArtworkVariant.THUMBNAIL) "thumb" else "full"}" }
@@ -85,7 +80,7 @@ private fun MovieInput.toFields(): MovieFields =
     MovieFields.newBuilder()
         .setTitle(title)
         .addAllGenres(genres)
-        // Named explicitly: inside the builder's apply, a bare `synopsis` would be the builder's field.
+        // Inside apply, a bare synopsis would be the builder's own field.
         .apply {
             this@toFields.synopsis?.let { setSynopsis(it) }
             this@toFields.releaseDate?.let { setReleaseDate(it) }

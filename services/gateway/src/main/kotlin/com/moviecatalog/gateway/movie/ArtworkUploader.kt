@@ -13,18 +13,10 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 /**
- * Uploads artwork and attaches it to a movie. Media and catalog are separate services, so there is no shared transaction:
- *
- * - The movie is checked first so a missing movie never costs an upload.
- * - After uploading, the catalog attaches the new artwork if the movie is still at the
- *   version the user saw.
- * - If the catalog definitely refused (missing movie, stale version, bad input), the new file
- *   is unattached and is deleted.
- * - If the outcome is unknown (timeout, lost connection), the catalog may have committed, so
- *   the new file is kept and the problem logged: an orphaned file is better than a movie
- *   pointing at a deleted one.
- * - The artwork that was replaced is deleted using the ID the catalog returned from the same
- *   transaction, never one read earlier.
+ * Media and catalog have no shared transaction, so:
+ * - if the catalog refuses the new artwork, the uploaded file is deleted;
+ * - if the outcome is unknown (timeout), the file is kept, since the catalog may have saved it;
+ * - the replaced artwork is deleted using the ID the catalog returned.
  */
 @Component
 class ArtworkUploader(
@@ -63,7 +55,7 @@ class ArtworkUploader(
     }
 
     companion object {
-        /** Codes that mean the catalog answered and did not apply the change. */
+        // The catalog answered and did not apply the change.
         val DEFINITE_REJECTIONS = setOf(
             Status.Code.INVALID_ARGUMENT,
             Status.Code.NOT_FOUND,

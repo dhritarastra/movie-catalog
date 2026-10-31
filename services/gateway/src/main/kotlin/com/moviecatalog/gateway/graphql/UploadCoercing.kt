@@ -10,7 +10,7 @@ import graphql.schema.CoercingSerializeException
 import org.springframework.web.multipart.MultipartFile
 import java.util.Locale
 
-/** How the `Upload` scalar converts values: a file from a multipart variable, and nothing else. */
+/** Accepts only a file passed as a multipart variable. */
 internal object UploadCoercing : Coercing<MultipartFile, Nothing> {
     override fun parseValue(input: Any, graphQLContext: GraphQLContext, locale: Locale): MultipartFile =
         input as? MultipartFile

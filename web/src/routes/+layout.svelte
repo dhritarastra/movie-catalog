@@ -11,11 +11,9 @@
 
 	let { children }: LayoutProps = $props();
 
-	// The search page has its own box, so the header's is hidden there.
 	const onSearchPage = $derived(page.url.pathname === resolve('/search'));
 	let headerQuery = $state('');
 
-	/** Opens the search page for the typed text; it shows the results and updates as you type. */
 	function search(event: SubmitEvent) {
 		event.preventDefault();
 		const text = headerQuery;
@@ -23,7 +21,6 @@
 		void goto(`${resolve('/search')}${searchQueryString(text)}` as ResolvedPathname);
 	}
 
-	// A section's link is the current page on its list, and marks the current section below it.
 	function current(path: '/movies' | '/people'): 'page' | 'true' | undefined {
 		if (page.url.pathname === path) return 'page';
 		return page.url.pathname.startsWith(`${path}/`) ? 'true' : undefined;
@@ -133,7 +130,6 @@
 		font: inherit;
 	}
 
-	/* On a phone the search box takes its own row under the brand and links, at full width. */
 	@media (max-width: 600px) {
 		.header-search {
 			flex: 1 1 100%;

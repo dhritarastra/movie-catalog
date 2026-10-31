@@ -18,7 +18,6 @@ import io.grpc.stub.StreamObserver
 import org.springframework.stereotype.Service
 import com.moviecatalog.catalog.v1.Person as PersonProto
 
-/** gRPC endpoint for people, shaped like MovieGrpcService. */
 @Service
 class PersonGrpcService(private val people: PersonService) : PersonServiceGrpc.PersonServiceImplBase() {
     override fun createPerson(request: CreatePersonRequest, responseObserver: StreamObserver<PersonProto>) =
@@ -27,7 +26,6 @@ class PersonGrpcService(private val people: PersonService) : PersonServiceGrpc.P
     override fun getPerson(request: GetPersonRequest, responseObserver: StreamObserver<PersonProto>) =
         responseObserver.complete(people.get(RequestArguments.uuid("id", request.id)).toProto())
 
-    /** Backs the gateway's batch lookups; IDs that do not exist are absent from the map. */
     override fun getPeopleByIds(request: GetPeopleByIdsRequest, responseObserver: StreamObserver<GetPeopleByIdsResponse>) {
         val ids = request.idsList.map { RequestArguments.uuid("ids", it) }
         responseObserver.complete(
@@ -68,8 +66,7 @@ private fun PersonFields.toInput() =
         birthDate = if (hasBirthDate()) birthDate else null,
     )
 
-// Receivers are named explicitly: inside the builder's apply, a bare `bio` would be the builder's own field.
-/** Also used by SearchGrpcService, so a person looks the same in every response. */
+// Inside apply, a bare bio would be the builder's own field.
 internal fun Person.toProto(): PersonProto =
     PersonProto.newBuilder()
         .setId(requireNotNull(id) { "a saved person has an id" }.toString())

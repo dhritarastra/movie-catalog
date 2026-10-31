@@ -19,17 +19,9 @@ import java.net.URI
 import java.util.UUID
 
 /**
- * Accepts GraphQL operations sent as multipart/form-data under the GraphQL multipart request spec
- * (https://github.com/jaydenseric/graphql-multipart-request-spec), which Spring for GraphQL does not
- * support itself. The request has three kinds of part:
- *
- * - `operations`: the usual JSON body, with `null` where each file goes;
- * - `map`: which file part fills which variable, for example `{"0": ["variables.file"]}`;
- * - one part per file, named by the keys of `map`.
- *
- * This handler only puts the files into the variables. The operation then runs through Spring's
- * normal [WebGraphQlHandler], so schema validation, the `Upload` scalar, interceptors and error
- * resolvers behave exactly as they do for JSON requests.
+ * Handles the GraphQL multipart request spec (operations, map and file parts), which Spring for
+ * GraphQL does not support. It puts the files into the variables and runs the operation through
+ * the normal WebGraphQlHandler.
  */
 @Component
 class GraphQlMultipartHandler(
@@ -38,7 +30,6 @@ class GraphQlMultipartHandler(
     private val properties: GatewayProperties,
 ) {
     fun handle(request: ServerRequest): ServerResponse {
-        // DispatcherServlet has already parsed the multipart body before routing.
         val multipart = request.servletRequest() as? MultipartHttpServletRequest
             ?: return badRequest("Expected a multipart/form-data request")
         return try {
@@ -64,7 +55,6 @@ class GraphQlMultipartHandler(
             LinkedMultiValueMap<String, HttpCookie>(),
             request.remoteAddr?.let { InetSocketAddress(it, request.remotePort) },
             mutableMapOf<String, Any>(),
-            // Parsed JSON can hold nulls, which Spring's own JSON endpoint passes through the same way.
             @Suppress("UNCHECKED_CAST") (body as Map<String, Any>),
             UUID.randomUUID().toString(),
             request.locale,
@@ -77,11 +67,7 @@ class GraphQlMultipartHandler(
             .body(response.toMap())
     }
 
-    /**
-     * Checks the operation envelope the same way a JSON request body is checked, so nothing
-     * malformed reaches GraphQL execution: one operation (batches are not supported), a query
-     * string, and optional variables and operation name of the right types.
-     */
+    /** Checks the operations JSON like a normal request body. Batches are not supported. */
     private fun parseOperations(json: String?): MutableMap<String, Any?> {
         if (parseJson(json, "operations") is List<*>) {
             throw MultipartRequestException("Batched operations are not supported; send one operation per request")
@@ -97,7 +83,6 @@ class GraphQlMultipartHandler(
         return body
     }
 
-    /** A JSON object, rejecting anything else, including a literal `null`. */
     @Suppress("UNCHECKED_CAST")
     private fun parseObject(json: String?, part: String): MutableMap<String, Any?> =
         parseJson(json, part) as? MutableMap<String, Any?> ?: throw MultipartRequestException("The '$part' part must be a JSON object")
@@ -111,10 +96,7 @@ class GraphQlMultipartHandler(
         }
     }
 
-    /**
-     * Places [file] at a path such as `variables.file` or `variables.files.0`. Every step before the
-     * last must already exist in the operations JSON, as the spec requires.
-     */
+    /** Puts [file] at a path like `variables.file`; every step but the last must already exist. */
     @Suppress("UNCHECKED_CAST")
     private fun insertFile(variables: MutableMap<String, Any?>, path: String, file: MultipartFile) {
         val segments = path.split(".")

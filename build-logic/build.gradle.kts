@@ -2,7 +2,6 @@ plugins {
     `kotlin-dsl`
 }
 
-// The Gradle plugins the convention plugins apply. Their versions come from the version catalog.
 dependencies {
     implementation(libs.kotlin.gradle.plugin)
     implementation(libs.kotlin.allopen.plugin)

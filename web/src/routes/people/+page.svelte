@@ -7,7 +7,6 @@
 	import type { PeopleQuery as PeopleResult } from '#lib/graphql/generated/graphql.ts';
 	import { PeopleQuery } from '#lib/graphql/operations.ts';
 
-	// The catalog refuses to start with a catalog.paging.max-limit below this (PagingProperties).
 	const PAGE_SIZE = 20;
 
 	const pageHref = (n: number) => `${resolve('/people')}?page=${n}` as ResolvedPathname;
@@ -23,7 +22,6 @@
 	let view = $state<View>({ status: 'loading' });
 	let attempt = $state(0);
 
-	// Same loading rules as the movie list: aborting on change keeps a slow old page from winning.
 	$effect(() => {
 		const offset = (pageNumber - 1) * PAGE_SIZE;
 		void attempt;

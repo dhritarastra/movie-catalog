@@ -12,7 +12,6 @@
 
 	interface Props {
 		movieId: string;
-		/** The version the user is looking at; the upload is refused if the movie has changed since. */
 		version: number;
 		hasArtwork: boolean;
 		onUploaded(movie: MovieDetailFieldsFragment): void;
@@ -44,7 +43,7 @@
 
 	const busy = $derived(phase.name === 'uploading' || phase.name === 'processing');
 	const percent = $derived(phase.name === 'uploading' ? Math.round(phase.progress * 100) : 0);
-	// Announced to screen readers in 25% steps, so they are not flooded with every progress event.
+	// Announce progress in 25% steps rather than every event.
 	const announcement = $derived(
 		phase.name === 'uploading'
 			? `Uploading, ${Math.floor(phase.progress * 4) * 25} percent`

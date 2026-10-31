@@ -6,10 +6,8 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 /**
- * Deletes artwork files that the catalog no longer references: replaced, removed, belonging to a
- * deleted movie, or never attached. Callers only do this after the catalog has confirmed its side,
- * so a failure here can leave an orphaned file but never a movie pointing at a
- * missing one. Failures are logged rather than failing the user's request, which already succeeded.
+ * Deletes artwork the catalog no longer points to. Only called after the catalog has confirmed,
+ * so a failure leaves an orphaned file, never a movie with a missing image. Failures are only logged.
  */
 @Component
 class ArtworkCleaner(private val media: MediaClient) {

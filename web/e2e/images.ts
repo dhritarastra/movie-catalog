@@ -1,6 +1,5 @@
 import { deflateSync } from 'node:zlib';
 
-/** A real RGB PNG of the given size, built in code so the test needs no binary fixtures. */
 export function png(width: number, height: number): Buffer {
 	const row = Buffer.alloc(1 + width * 3);
 	const rows: Buffer[] = [];

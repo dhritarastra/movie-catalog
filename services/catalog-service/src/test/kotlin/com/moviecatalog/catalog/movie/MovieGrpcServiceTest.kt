@@ -28,7 +28,6 @@ import org.springframework.jdbc.core.simple.JdbcClient
 import java.util.UUID
 import com.moviecatalog.catalog.v1.Movie as MovieProto
 
-/** Drives the real gRPC endpoint in-process against Postgres: mapping, rules and SQL together. */
 @CatalogGrpcTest
 class MovieGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
     private val channel: ManagedChannel = InProcessChannelBuilder.forName(CATALOG_IN_PROCESS_NAME).directExecutor().build()
@@ -167,7 +166,7 @@ class MovieGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
         val artwork = UUID.randomUUID().toString()
         movies.setArtwork(setArtwork(movie.id, version = 1, artworkId = artwork))
 
-        // Only the title is sent: synopsis and runtime are cleared, and the empty list clears the genres.
+        // Only the title is sent, so the other fields are cleared.
         val updated = movies.updateMovie(update(movie.id, version = 2, MovieFields.newBuilder().setTitle("  Arrival (2016) ")))
 
         assertThat(updated.title).isEqualTo("Arrival (2016)")

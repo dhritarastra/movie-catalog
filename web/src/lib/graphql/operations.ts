@@ -1,7 +1,5 @@
 import { graphql } from './generated';
 
-// Every GraphQL operation the app sends. `npm run codegen` turns each into a typed document.
-
 export const MovieCardFields = graphql(`
 	fragment MovieCardFields on Movie {
 		id
@@ -176,10 +174,6 @@ export const MovieCreditsQuery = graphql(`
 	}
 `);
 
-/**
- * People offered when crediting someone: those whose name contains the typed text, or everyone
- * when it is blank, alphabetically. The page size is the API's default.
- */
 export const PersonPickerQuery = graphql(`
 	query PersonPicker($nameContains: String) {
 		people(nameContains: $nameContains) {
@@ -214,7 +208,6 @@ export const RemoveCreditMutation = graphql(`
 	}
 `);
 
-/** One search across movie titles and person names, best match first. */
 export const SearchQuery = graphql(`
 	query Search($query: String!, $limit: Int) {
 		search(query: $query, limit: $limit) {

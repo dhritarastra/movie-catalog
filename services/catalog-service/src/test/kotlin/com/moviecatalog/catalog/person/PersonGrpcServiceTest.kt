@@ -26,7 +26,6 @@ import org.springframework.jdbc.core.simple.JdbcClient
 import java.util.UUID
 import com.moviecatalog.catalog.v1.Person as PersonProto
 
-/** The person endpoint end to end in-process, against the same Postgres as MovieGrpcServiceTest. */
 @CatalogGrpcTest
 class PersonGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
     private val channel: ManagedChannel = InProcessChannelBuilder.forName(CATALOG_IN_PROCESS_NAME).directExecutor().build()
@@ -34,7 +33,7 @@ class PersonGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
 
     @BeforeEach
     fun emptyTable() {
-        // Credits first: a person with credits cannot be deleted.
+        // Credits first: a credited person cannot be deleted.
         jdbc.sql("DELETE FROM credit").update()
         jdbc.sql("DELETE FROM person").update()
     }
@@ -84,10 +83,9 @@ class PersonGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
         val page1 = list(offset = 0, limit = 2)
         val page2 = list(offset = 2, limit = 3)
 
-        // Byte order would put "Émile" after "Jeremy": É is a two-byte character above every ASCII letter.
+        // Byte order would put "Émile" after "Jeremy".
         assertThat(all.peopleList.map { it.name })
             .containsExactly("Amy Adams", "Amy Adams", "denis Villeneuve", "Émile Hirsch", "Jeremy Renner")
-        // The two Amy Adams rows are split across pages in the same order as the full list.
         assertThat((page1.peopleList + page2.peopleList).map { it.id }).isEqualTo(all.peopleList.map { it.id })
         assertThat(listOf(all, page1, page2).map { it.totalCount }).containsOnly(5)
     }
@@ -128,7 +126,7 @@ class PersonGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
     fun `an update replaces every editable field and bumps the version`() {
         val person = create(PersonFields.newBuilder().setName("Amy Adams").setBio("Actor.").setBirthDate("1974-08-20"))
 
-        // Only the name is sent, so the bio and birth date are cleared.
+        // Only the name is sent, so bio and birth date are cleared.
         val updated = people.updatePerson(update(person.id, version = 1, PersonFields.newBuilder().setName(" Amy Lou Adams ")))
 
         assertThat(updated.name).isEqualTo("Amy Lou Adams")

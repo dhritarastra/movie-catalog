@@ -1,4 +1,4 @@
-# The services image is built from the repository root; send only what it compiles.
+# The service images are built from the repository root.
 **/build/
 **/.gradle/
 **/.kotlin/

@@ -35,7 +35,6 @@ import java.time.Duration
 import java.util.concurrent.TimeUnit
 import com.moviecatalog.catalog.v1.CreditType as CreditTypeProto
 
-/** Request mapping and deadlines for catalog calls, against a fake catalog over in-process gRPC. */
 class CatalogClientTest {
     private val name = InProcessServerBuilder.generateName()
     private lateinit var server: Server

@@ -20,7 +20,6 @@ import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
-/** The client side of the streaming upload, against a fake media server over in-process gRPC. */
 class MediaClientTest {
     private val name = InProcessServerBuilder.generateName()
     private lateinit var server: Server
@@ -58,7 +57,7 @@ class MediaClientTest {
         }
 
         assertThat(error.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
-        // Far fewer than the 16 chunks a full send would need; exact count depends on what was in flight.
+        // A full send would need 16 chunks.
         assertThat(fake.chunksSeen.get()).isLessThan(16)
     }
 

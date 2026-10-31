@@ -8,12 +8,8 @@ import java.io.IOException
 import java.io.InputStream
 
 /**
- * Sends one download: the metadata message, then the file in chunks, but only while gRPC reports
- * the client can take more (`isReady`). When a slow client falls behind, sending pauses until gRPC
- * calls the on-ready handler again, so at most about one chunk is buffered instead of the whole
- * file queueing in memory. The file is closed on completion, read failure and cancellation.
- *
- * gRPC runs the on-ready and on-cancel handlers one at a time for a call, so this needs no locking.
+ * Streams a file in chunks, but only while the client is ready for more (isReady), so a slow
+ * client never makes the whole file pile up in memory.
  */
 class ChunkedDownload(
     private val call: ServerCallStreamObserver<DownloadArtworkResponse>,
@@ -27,7 +23,7 @@ class ChunkedDownload(
     @Volatile
     private var finished = false
 
-    /** Must be called before the service method returns, as gRPC requires for these handlers. */
+    /** gRPC requires the handlers to be set before the service method returns. */
     fun start() {
         call.setOnCancelHandler { finish() }
         call.setOnReadyHandler { sendWhileReady() }

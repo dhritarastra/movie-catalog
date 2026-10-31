@@ -10,11 +10,7 @@ import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.grpc.server.exception.GrpcExceptionHandler
 import org.springframework.stereotype.Component
 
-/**
- * Translates [CatalogException]s into gRPC statuses. Validation failures carry a
- * google.rpc.BadRequest detail listing each field, so the gateway can show per-field errors.
- * Returning null leaves other exceptions to Spring gRPC's default handling (UNKNOWN).
- */
+/** Maps catalog errors to gRPC statuses; anything else falls through to Spring gRPC. */
 @Component
 class CatalogGrpcExceptionHandler : GrpcExceptionHandler {
     override fun handleException(exception: Throwable): StatusException? =
@@ -24,7 +20,7 @@ class CatalogGrpcExceptionHandler : GrpcExceptionHandler {
             is AlreadyExistsException -> Status.ALREADY_EXISTS.withDescription(exception.message).asException()
             is FailedPreconditionException -> Status.FAILED_PRECONDITION.withDescription(exception.message).asException()
             is InvalidArgumentException -> invalidArgument(exception)
-            // Two writes raced and this one lost: the row changed after it was read.
+            // Another write changed the row after we read it.
             is OptimisticLockingFailureException ->
                 Status.ABORTED.withDescription("Someone else changed this at the same moment; reload and try again").asException()
             else -> null

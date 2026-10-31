@@ -15,7 +15,6 @@ import org.springframework.data.domain.Sort
 import org.springframework.jdbc.core.simple.JdbcClient
 import java.time.LocalDate
 
-/** The entity mapping against the real schema: Flyway's migration, the ICU collation and constraints. */
 @DataJpaTest
 @Import(TestcontainersConfiguration::class)
 class PersonRepositoryTest(
@@ -76,7 +75,6 @@ class PersonRepositoryTest(
         val page = repository.findAll(OffsetPageRequest(0, 10, Sort.by("name", "id")))
 
         assertThat(page.content.map { it.name }).containsExactly("Amy Adams", "Amy Adams", "denis Villeneuve", "Émile Hirsch", "Jeremy Renner")
-        // Postgres orders uuids as their canonical strings sort.
         assertThat(page.content.take(2).map { it.id.toString() }).isSorted()
     }
 

@@ -29,13 +29,11 @@ class MovieService(
 
     fun get(id: UUID): Movie = repository.findByIdOrNull(id) ?: throw notFound(id)
 
-    /** The movies that exist among [ids]; unknown IDs are left out. */
     fun getAll(ids: Collection<UUID>): List<Movie> = repository.findAllById(ids)
 
-    /** Newest first; the id tie-breaker keeps the order stable across pages. */
+    /** Newest first, with id as a tie-breaker so pages stay stable. */
     fun list(offset: Int, limit: Int): Page<Movie> = repository.findAll(paging.of(offset, limit, NEWEST_FIRST))
 
-    /** Replaces every editable field with the input (a missing optional field clears it) if the movie is still at [expectedVersion]. */
     @Transactional
     fun update(id: UUID, expectedVersion: Int, input: MovieInput): Movie {
         validator.check(input)
@@ -49,7 +47,7 @@ class MovieService(
         return repository.saveAndFlush(movie)
     }
 
-    /** Deletes the movie if it is still at [expectedVersion], returning the artwork it had so the gateway can delete the file. */
+    /** Returns the artwork the movie had, so the gateway can delete the file. */
     @Transactional
     fun delete(id: UUID, expectedVersion: Int): UUID? {
         val movie = current(id, expectedVersion)
@@ -58,15 +56,10 @@ class MovieService(
         return movie.artworkId
     }
 
-    /**
-     * Attaches artwork if the movie is still at [expectedVersion]. The previous artwork ID comes
-     * from the same row the update is checked against, so the gateway deletes exactly the file
-     * that was replaced, never one chosen from an earlier, possibly stale read.
-     */
+    /** Returns the replaced artwork, read from the same version-checked row. */
     @Transactional
     fun setArtwork(id: UUID, expectedVersion: Int, artworkId: UUID): ArtworkChange = changeArtwork(id, expectedVersion, artworkId)
 
-    /** Removes the movie's artwork, with the same version check, returning the artwork that was removed. */
     @Transactional
     fun clearArtwork(id: UUID, expectedVersion: Int): ArtworkChange = changeArtwork(id, expectedVersion, null)
 
@@ -78,10 +71,6 @@ class MovieService(
         return ArtworkChange(repository.saveAndFlush(movie), previous)
     }
 
-    /**
-     * The movie the caller wants to change, if they saw its current version. A change made by
-     * someone else between this read and the write is caught by Hibernate's version check.
-     */
     private fun current(id: UUID, expectedVersion: Int): Movie {
         val movie = repository.findByIdOrNull(id) ?: throw notFound(id)
         if (movie.version != expectedVersion) {

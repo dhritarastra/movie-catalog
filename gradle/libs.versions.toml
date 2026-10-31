@@ -1,8 +1,4 @@
-# Spring Boot's BOM manages most library versions (Kotlin, Spring GraphQL, Spring gRPC,
-# grpc-java, Testcontainers, Flyway). Only versions outside that BOM, or ones that must
-# match it in a non-dependency context (Gradle plugins, protoc artifacts), are pinned here.
-# The managed versions were read from the spring-boot-dependencies and spring-grpc-dependencies
-# POMs on Maven Central.
+# Spring Boot's BOM manages most versions. Only the rest are pinned here.
 
 [versions]
 spring-boot = "4.1.2"
@@ -18,7 +14,7 @@ spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies"
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 springmockk = { module = "com.ninja-squad:springmockk", version.ref = "springmockk" }
 
-# Gradle plugins, on build-logic's classpath so its convention plugins can apply them.
+# Gradle plugins used by build-logic.
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 kotlin-allopen-plugin = { module = "org.jetbrains.kotlin:kotlin-allopen", version.ref = "kotlin" }
 kotlin-noarg-plugin = { module = "org.jetbrains.kotlin:kotlin-noarg", version.ref = "kotlin" }

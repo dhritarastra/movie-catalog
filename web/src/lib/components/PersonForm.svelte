@@ -15,13 +15,10 @@
 	}
 
 	interface Props {
-		/** Starting values: empty when adding, the stored person when editing. */
 		initial?: PersonFormValues;
 		submitLabel: string;
 		cancelHref: ResolvedPathname;
-		/** Saves the input; a rejection is shown as field errors or a message. */
 		onSubmit(input: PersonInput): Promise<void>;
-		/** Offered after a conflict, so the user can load the latest version (losing these edits). */
 		onReload?(): void;
 	}
 
@@ -30,7 +27,6 @@
 	const FIELDS = ['name', 'birthDate', 'bio'];
 	const EARLIEST_BIRTH = '1800-01-01';
 
-	// Copied once, like MovieForm: the form owns its values after it is created.
 	const start = untrack(() => initial);
 	let name = $state(start?.name ?? '');
 	let birthDate = $state(start?.birthDate ?? '');
@@ -44,12 +40,11 @@
 	let form: HTMLFormElement | undefined = $state();
 	const visit = trackVisit();
 
-	/** Mirrors the catalog's rules for instant feedback; the catalog still has the final say. */
+	/** Quick checks in the browser; the server has the final say. */
 	function validate(): Record<string, string> {
 		const found: Record<string, string> = {};
 		if (!name.trim()) found.name = 'Enter a name.';
 		else if (name.trim().length > 200) found.name = 'Use at most 200 characters.';
-		// ISO dates compare correctly as strings.
 		if (birthDate && birthDate < EARLIEST_BIRTH)
 			found.birthDate = 'Enter a date from 1800 onwards.';
 		else if (birthDate && birthDate > today)
@@ -67,13 +62,11 @@
 			form?.querySelector<HTMLElement>(`#${Object.keys(errors)[0]}`)?.focus();
 			return;
 		}
-		// The fields are locked until the save finishes, as in MovieForm.
 		saving = true;
 		const stillHere = visit.mark();
 		const subject = name.trim();
 		let failure: SaveFailure | null = null;
 		try {
-			// Every editable field is sent: updates replace the whole record.
 			await onSubmit({ name, birthDate: birthDate || null, bio: bio || null });
 		} catch (error) {
 			if (!stillHere()) {
@@ -91,7 +84,7 @@
 		if (failure && stillHere()) await showFailure(failure, stillHere);
 	}
 
-	/** Locking the fields took focus off the form, so focus goes back to what needs attention. */
+	/** The locked fields lost focus, so move it to the problem. */
 	async function showFailure(failure: SaveFailure, stillHere: () => boolean) {
 		if (failure.kind === 'fields') errors = failure.errors;
 		else formError = failure;

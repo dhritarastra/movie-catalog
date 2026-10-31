@@ -6,9 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository
 import java.util.UUID
 
 interface PersonRepository : JpaRepository<Person, UUID> {
-    /**
-     * People whose name contains [name], ignoring case. Spring Data escapes % and _ in the
-     * argument, so they are matched as themselves rather than as wildcards.
-     */
+    /** Spring Data escapes % and _ in [name], so they match literally. */
     fun findAllByNameContainingIgnoreCase(name: String, pageable: Pageable): Page<Person>
 }

@@ -22,10 +22,9 @@
 	}: Props = $props();
 
 	let dialog: HTMLDialogElement | undefined = $state();
-	// Unique per dialog: a page can have more than one (a movie page has its own and the credits').
 	const uid = $props.id();
 
-	// A native modal dialog: it traps focus, starts on Cancel (the safe choice), and closes on Escape.
+	// Native modal dialog: traps focus, starts on Cancel and closes on Escape.
 	$effect(() => {
 		if (!dialog) return;
 		if (open && !dialog.open) dialog.showModal();

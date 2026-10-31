@@ -5,10 +5,7 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Component
 
-/**
- * Turns a requested offset and limit into a [Pageable]. Out-of-range values are rejected, never
- * clamped, so a caller's next page always starts at offset + limit.
- */
+/** Out-of-range values are rejected, not clamped. */
 @Component
 class Paging(private val properties: PagingProperties) {
     fun of(offset: Int, limit: Int, sort: Sort): Pageable {

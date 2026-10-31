@@ -2,7 +2,6 @@
 	import { dismissToast, toasts } from '#lib/toasts.svelte.ts';
 </script>
 
-<!-- A polite live region, so screen readers announce each confirmation once. -->
 <div class="toasts" aria-live="polite">
 	{#each toasts as toast (toast.id)}
 		<div class="toast {toast.kind}" role="status">

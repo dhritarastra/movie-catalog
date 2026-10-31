@@ -7,14 +7,9 @@ import jakarta.validation.Validator
 import org.springframework.stereotype.Component
 import kotlin.reflect.full.primaryConstructor
 
-/**
- * Runs Spring's Bean Validation on an input and reports every broken rule at once as an
- * [InvalidArgumentException]. Field names follow the proto fields (snake_case) and come in the
- * order the input declares them, so a form can show and focus its errors predictably.
- */
+/** Reports every violation at once, using the proto field names, in declaration order. */
 @Component
 class InputValidator(private val validator: Validator) {
-    /** [extra] carries rules an annotation cannot express, such as ones that involve two fields. */
     fun check(input: Any, extra: List<FieldViolation> = emptyList()) {
         val violations = validator.validate(input).map { FieldViolation(fieldName(it), it.message) } + extra
         if (violations.isEmpty()) return
@@ -26,7 +21,7 @@ class InputValidator(private val validator: Validator) {
         )
     }
 
-    /** `genres[3].<list element>` -> `genres`; `releaseDate` -> `release_date`. */
+    // "genres[3]" -> "genres", "releaseDate" -> "release_date"
     private fun fieldName(violation: ConstraintViolation<*>): String =
         violation.propertyPath.first().name.replace(Regex("([a-z])([A-Z])")) { "${it.groupValues[1]}_${it.groupValues[2].lowercase()}" }
 

@@ -6,10 +6,7 @@ import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 
-/**
- * A movie's editable fields, already trimmed by [normalised], with the rules Bean Validation
- * checks. The limits match the CHECK constraints in V1__create_movie.sql.
- */
+/** Limits match the CHECK constraints on the movie table. */
 data class MovieInput(
     @field:NotBlank(message = "is required")
     @field:Size(max = TITLE_MAX, message = "must be at most {max} characters")
@@ -29,10 +26,9 @@ data class MovieInput(
     val genres: List<@Size(max = 50, message = "each genre must be at most {max} characters") String>,
 ) {
     companion object {
-        /** The longest title, as the CHECK constraint in V1__create_movie.sql allows. */
         const val TITLE_MAX = 200
 
-        /** Trims text, turns blank optional text into null, and drops blank and repeated genres (ignoring case). */
+        /** Trims text, turns blanks into null and drops duplicate genres (ignoring case). */
         fun normalised(title: String, synopsis: String?, releaseDate: String?, runtimeMinutes: Int?, genres: List<String>) =
             MovieInput(
                 title = title.trim(),

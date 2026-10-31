@@ -8,10 +8,7 @@ import java.time.ZoneOffset
 
 @Configuration
 class ValidationConfiguration {
-    /**
-     * Bean Validation's "today" is the date in UTC+14, the first time zone to reach each new day.
-     * A date that is today for the user, wherever they are, is then never rejected as the future.
-     */
+    // "Today" in UTC+14, so a date that is today anywhere in the world is never in the future.
     @Bean
     fun earliestTimeZoneClock(): ValidationConfigurationCustomizer =
         ValidationConfigurationCustomizer { configuration ->

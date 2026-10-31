@@ -3,10 +3,7 @@ package com.moviecatalog.catalog.common
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
 
-/**
- * A [Pageable] that starts at any offset. Spring's PageRequest only takes page numbers, but the
- * API pages by offset and limit, and an offset need not be a multiple of the limit.
- */
+/** Spring's PageRequest only takes page numbers, but the API pages by offset. */
 class OffsetPageRequest(private val offset: Long, private val limit: Int, private val sort: Sort) : Pageable {
     override fun getPageNumber(): Int = (offset / limit).toInt()
 

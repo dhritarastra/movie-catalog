@@ -11,13 +11,8 @@ import java.util.HexFormat
 import com.moviecatalog.media.v1.Artwork as ArtworkProto
 
 /**
- * Receives one client-streamed upload: exactly one metadata message, then the image in chunks.
- * Bytes go straight to a temporary file while their size and SHA-256 are tracked, so memory use
- * stays at one chunk. The size limit is enforced on every chunk, so an oversized upload is
- * rejected as soon as it crosses the limit, not after it has all arrived.
- *
- * gRPC delivers a call's messages one at a time, so this class needs no locking. Once it has
- * failed or finished, later messages are ignored.
+ * Receives one upload: a metadata message, then chunks written straight to a temp file.
+ * The size limit is checked on every chunk, so an oversized upload stops as soon as it crosses it.
  */
 class UploadSession(
     private val storage: ArtworkStorage,
@@ -45,7 +40,6 @@ class UploadSession(
         }
     }
 
-    /** The client cancelled or the connection broke: discard whatever was received. */
     override fun onError(t: Throwable) {
         finished = true
         discard()

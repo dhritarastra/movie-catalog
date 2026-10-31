@@ -19,7 +19,6 @@
 
 	const urlQuery = $derived(page.url.searchParams.get('q') ?? '');
 	let query = $state(untrack(() => urlQuery));
-	// Derived values only notify when they change, so a trailing space does not search again.
 	const searchText = $derived(query.trim());
 	let view = $state<View>({ status: 'idle' });
 	let searching = $state(false);
@@ -28,20 +27,15 @@
 
 	onMount(() => input?.focus());
 
-	// Back and Forward change the address without this box, so the box follows them. It does
-	// not follow the page's own address updates (showInAddress): one can land after the next
-	// key has been typed, and following it would put back the text from before that key.
+	// Follow Back/Forward, but not our own address updates, which can lag behind typing.
 	afterNavigate(({ type, to }) => {
 		if (type === 'popstate') query = to?.url.searchParams.get('q') ?? '';
 	});
 
-	// Searches after a pause in typing. The cleanup cancels both the wait and the request it
-	// started, so an older, slower answer can never replace a newer one.
+	// Wait for a pause in typing; the cleanup cancels older requests so they never win.
 	$effect(() => {
 		const text = searchText;
 		void attempt;
-		// Read without tracking: the address is written here, and reacting to that write would
-		// search again and cancel the request just sent.
 		const fromAddress = untrack(() => urlQuery.trim());
 		if (!text) {
 			view = { status: 'idle' };
@@ -64,7 +58,7 @@
 						if (!controller.signal.aborted) searching = false;
 					});
 			},
-			// A search arriving in the address (a link, Back, the header box) runs at once.
+			// A search from the address (a link, Back) runs at once.
 			text === fromAddress ? 0 : SEARCH_DELAY_MS
 		);
 		return () => {
@@ -73,12 +67,10 @@
 		};
 	});
 
-	/** Keeps the address in step with the box, replacing the entry so typing is not history. */
 	function showInAddress(text: string) {
 		if (text === urlQuery.trim()) return;
 		void goto(`${resolve('/search')}${searchQueryString(text)}` as ResolvedPathname, {
 			replace: true,
-			// Leaves focus in the box and the scroll position alone while typing.
 			reset: false
 		});
 	}
@@ -104,7 +96,6 @@
 	/>
 </form>
 
-<!-- Everything a search changes is announced here, so the results are heard as well as seen. -->
 <p class="muted" id="search-status" aria-live="polite">
 	{#if searching}
 		Searching…

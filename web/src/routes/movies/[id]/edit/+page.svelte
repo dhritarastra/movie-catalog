@@ -38,11 +38,7 @@
 
 	const visit = trackVisit();
 
-	/**
-	 * Saves against the version that was loaded, so a newer edit made elsewhere is never
-	 * overwritten. If the user leaves while it saves, the save still completes; they get the
-	 * toast but are not pulled back to this movie.
-	 */
+	/** If the user leaves while this saves, they still get the toast but aren't taken back. */
 	async function save(movie: MovieDetailFieldsFragment, input: MovieInput) {
 		const stillHere = visit.mark();
 		await request(UpdateMovieMutation, { id: movie.id, version: movie.version, input });
@@ -78,7 +74,7 @@
 {:else}
 	{@const movie = view.movie}
 	<h1>Edit {movie.title}</h1>
-	<!-- Keyed on the version, so reloading after a conflict resets the form to the latest values. -->
+	<!-- Remounts the form with the latest values after a reload. -->
 	{#key movie.version}
 		<MovieForm
 			initial={movie}

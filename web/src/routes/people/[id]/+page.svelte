@@ -33,7 +33,6 @@
 		const personId = id;
 		void attempt;
 		const controller = new AbortController();
-		// Back/Forward can reuse this component for another ID while an action is pending.
 		confirming = false;
 		busy = false;
 		confirmError = null;
@@ -56,12 +55,11 @@
 
 	const visit = trackVisit();
 
-	/** Several credits can be on one movie (cast and director, say), so movies are counted once. */
+	/** A person can have several credits on one movie, so count movies once. */
 	function creditedMovies(person: NonNullable<PersonQueryResult['person']>): number {
 		return new Set(resolved(person.credits, 'movie').map((credit) => credit.movie.id)).size;
 	}
 
-	/** Like deleting a movie: if the user leaves while this runs, they get a toast but stay where they went. */
 	async function remove(person: PersonDetailFieldsFragment) {
 		const stillHere = visit.mark();
 		busy = true;
@@ -78,14 +76,12 @@
 			}
 			if (error instanceof GraphQlRequestError && error.code === 'CONFLICT') {
 				confirming = false;
-				// Nothing was deleted. Show the latest version so the user decides again knowingly.
 				attempt++;
 				showToast(
 					'error',
 					'Someone else changed this person, so nothing was deleted. This is the latest version; try again if you still want to.'
 				);
 			} else {
-				// Includes FAILED_PRECONDITION, whose message explains what has to change first.
 				confirmError = describeError(error);
 			}
 		} finally {
