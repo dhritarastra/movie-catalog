@@ -13,6 +13,10 @@ type Query {
   person(id: ID!): Person
   "Movies and people matching the query, best match first. An explicit null limit means the default of 10."
   search(query: String!, limit: Int = 10): [SearchResult!]!
+  "Whether this server can look up posters on TMDB."
+  tmdbPostersEnabled: Boolean!
+  "The poster TMDB finds for the movie's title and release year, or null if it finds none."
+  tmdbPoster(movieId: ID!): TmdbPoster
 }
 
 type Mutation {
@@ -21,6 +25,8 @@ type Mutation {
   deleteMovie(id: ID!, version: Int!): ID!
   uploadArtwork(movieId: ID!, version: Int!, file: Upload!): Movie!
   removeArtwork(movieId: ID!, version: Int!): Movie!
+  "Attaches a TMDB poster with the same version check as uploadArtwork."
+  useTmdbPoster(movieId: ID!, version: Int!, tmdbId: Int!): Movie!
 
   createPerson(input: PersonInput!): Person!
   updatePerson(id: ID!, version: Int!, input: PersonInput!): Person!
@@ -135,4 +141,12 @@ input UpdateCreditInput {
   type: CreditType!
   characterName: String
   billingOrder: Int!
+}
+
+"A poster found on TMDB (themoviedb.org), shown to the user before they use it."
+type TmdbPoster {
+  tmdbId: Int!
+  title: String!
+  releaseYear: String
+  previewUrl: String!
 }
