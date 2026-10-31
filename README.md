@@ -52,12 +52,27 @@ docker compose run --rm seed
 
 It goes through the same GraphQL API as the web app, so every rule applies, and takes a few
 seconds. The films and credits are real (the main cast, the directors and writers, and a few
-producers); the synopses and bios are written for this project, and the artwork is one original
-abstract poster used for each movie (The Matrix is left without one, to show the placeholder).
+producers); the synopses and bios are written for this project. The Matrix is left without
+artwork, to show the placeholder.
+
+By default every other movie gets the same original abstract poster. To use the films' real
+posters, get a free API Read Access Token from [TMDB](https://www.themoviedb.org/settings/api)
+and pass it in when seeding:
+
+```bash
+TMDB_API_TOKEN=<your token> docker compose run --rm seed
+```
+
+The posters are downloaded at seed time and uploaded through the app, so they are never stored
+in this repository. A movie whose poster can't be fetched gets the shared one instead.
+
 It refuses to run on a catalog that already has movies or people, since it would add them all
 again; `docker compose down -v` empties it. If a run stops part way, it says how far it got, and
 the same reset lets you start again. During local development,
-`cd web && SEED_URL=http://localhost:8080/graphql npm run seed` does the same against the gateway.
+`cd web && SEED_URL=http://localhost:8080/graphql npm run seed` does the same against the gateway
+(add `TMDB_API_TOKEN=...` in front for real posters).
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## Develop locally
 

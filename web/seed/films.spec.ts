@@ -1,21 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { movies, people } from './films.ts';
 
-// The seed goes through the API, which would refuse bad data halfway through and leave a
-// partly seeded catalog. These checks catch that before any request is sent.
+// The seed would fail halfway on bad data, so check the data first.
 
-/** A real calendar date in yyyy-MM-dd form, such as the API accepts. */
 function isRealDate(text: string): boolean {
 	if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
 	return new Date(`${text}T00:00:00Z`).toISOString().startsWith(text);
 }
 
-// The API's limits, from the Bean Validation annotations on MovieInput, PersonInput and
-// CreditInput in catalog-service (and the CHECK constraints they mirror).
+// The API's limits.
 const TITLE_MAX = 200;
 const NAME_MAX = 200;
 const CHARACTER_MAX = 200;
-const TEXT_MAX = 2000; // synopsis and bio
+const TEXT_MAX = 2000;
 const GENRES_MAX = 10;
 const GENRE_MAX = 50;
 const RUNTIME_MAX = 1000;
@@ -60,9 +57,15 @@ describe('the demo movies', () => {
 			expect(movie.genres.length).toBeLessThanOrEqual(GENRES_MAX);
 			for (const genre of movie.genres)
 				expect(isTrimmedText(genre, GENRE_MAX), movie.title).toBe(true);
-			// The API drops repeated genres ignoring case, so a repeat would be lost silently.
+			// The API drops repeated genres, so a repeat would be lost silently.
 			expect(new Set(movie.genres.map((g) => g.toLowerCase())).size).toBe(movie.genres.length);
 		}
+	});
+
+	it('each have their own TMDB id', () => {
+		for (const movie of movies)
+			expect(Number.isInteger(movie.tmdbId) && movie.tmdbId > 0, movie.title).toBe(true);
+		expect(new Set(movies.map((m) => m.tmdbId)).size).toBe(movies.length);
 	});
 
 	it('credit only listed people, never the same person in the same role twice', () => {
