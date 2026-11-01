@@ -22,7 +22,6 @@ describe('format', () => {
 
 	it('writes calendar dates out in full, on the same day in every time zone', () => {
 		expect(formatDate('1974-08-20')).toBe('20 August 1974');
-		// The first of a month is where a time-zone shift would show, as the last day of the previous one.
 		expect(formatDate('1800-01-01')).toBe('1 January 1800');
 		expect(formatDate(null)).toBeNull();
 	});

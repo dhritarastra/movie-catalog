@@ -4,8 +4,14 @@
 	import { page } from '$app/state';
 	import ArtworkUpload from '#lib/components/ArtworkUpload.svelte';
 	import ConfirmDialog from '#lib/components/ConfirmDialog.svelte';
+	import MovieCredits from '#lib/components/MovieCredits.svelte';
 	import { formatRuntime, yearOf } from '#lib/format.ts';
-	import { describeError, GraphQlRequestError, request } from '#lib/graphql/client.ts';
+	import {
+		describeError,
+		describeReadError,
+		GraphQlRequestError,
+		request
+	} from '#lib/graphql/client.ts';
 	import type { MovieDetailFieldsFragment } from '#lib/graphql/generated/graphql.ts';
 	import {
 		DeleteMovieMutation,
@@ -24,24 +30,28 @@
 	const id = $derived(page.params.id ?? '');
 	let view = $state<View>({ status: 'loading' });
 	let attempt = $state(0);
+	let tmdbEnabled = $state(false);
 
 	$effect(() => {
 		const movieId = id;
 		void attempt;
 		const controller = new AbortController();
+		confirming = null;
+		busy = false;
+		confirmError = null;
 		view = { status: 'loading' };
 		request(MovieQuery, { id: movieId }, { signal: controller.signal })
-			.then(
-				(data) =>
-					(view = data.movie ? { status: 'ready', movie: data.movie } : { status: 'not-found' })
-			)
+			.then((data) => {
+				tmdbEnabled = data.tmdbPostersEnabled;
+				view = data.movie ? { status: 'ready', movie: data.movie } : { status: 'not-found' };
+			})
 			.catch((error) => {
-				if (error?.name !== 'AbortError') view = { status: 'error', message: describeError(error) };
+				if (error?.name !== 'AbortError')
+					view = { status: 'error', message: describeReadError(error) };
 			});
 		return () => controller.abort();
 	});
 
-	// Shown only if this page still shows that movie; the toast confirms the upload either way.
 	function uploaded(movie: MovieDetailFieldsFragment) {
 		if (movie.id === id) view = { status: 'ready', movie };
 		showToast('success', 'Artwork updated.');
@@ -49,7 +59,6 @@
 
 	const visit = trackVisit();
 
-	// One confirmation dialog, for whichever destructive action was chosen.
 	let confirming = $state<'delete' | 'remove-artwork' | null>(null);
 	let busy = $state(false);
 	let confirmError = $state<string | null>(null);
@@ -59,11 +68,6 @@
 		confirming = action;
 	}
 
-	/**
-	 * The dialog blocks the page while this runs, but not the browser's Back button. If the user
-	 * leaves, the outcome is still confirmed with a toast, but this page neither navigates nor
-	 * updates (see trackVisit).
-	 */
 	async function confirm(movie: MovieDetailFieldsFragment) {
 		const stillHere = visit.mark();
 		busy = true;
@@ -71,7 +75,7 @@
 		try {
 			if (confirming === 'delete') {
 				await request(DeleteMovieMutation, { id: movie.id, version: movie.version });
-				confirming = null;
+				if (stillHere()) confirming = null;
 				showToast('success', `“${movie.title}” was deleted.`);
 				if (stillHere()) await goto(resolve('/movies'));
 			} else {
@@ -79,28 +83,27 @@
 					movieId: movie.id,
 					version: movie.version
 				});
-				confirming = null;
+				if (stillHere()) confirming = null;
 				if (stillHere()) view = { status: 'ready', movie: removeArtwork };
 				showToast('success', 'Artwork removed.');
 			}
 		} catch (error) {
+			if (!stillHere()) {
+				showToast('error', `Movie action for “${movie.title}”: ${describeError(error)}`);
+				return;
+			}
 			if (error instanceof GraphQlRequestError && error.code === 'CONFLICT') {
 				confirming = null;
-				if (stillHere()) {
-					// Nothing was changed. Show the latest version so the user decides again knowingly.
-					attempt++;
-					showToast(
-						'error',
-						'Someone else changed this movie, so nothing was done. This is the latest version; try again if you still want to.'
-					);
-				} else {
-					showToast('error', `Someone else changed “${movie.title}”, so nothing was done.`);
-				}
+				attempt++;
+				showToast(
+					'error',
+					'Someone else changed this movie, so nothing was done. This is the latest version; try again if you still want to.'
+				);
 			} else {
 				confirmError = describeError(error);
 			}
 		} finally {
-			busy = false;
+			if (stillHere()) busy = false;
 		}
 	}
 </script>
@@ -178,17 +181,20 @@
 				movieId={movie.id}
 				version={movie.version}
 				hasArtwork={!!movie.artworkUrl}
+				tmdb={tmdbEnabled}
 				onUploaded={uploaded}
 				onReload={() => attempt++}
 			/>
 		</div>
 	</article>
 
+	<MovieCredits movieId={movie.id} />
+
 	<ConfirmDialog
 		open={confirming !== null}
 		title={confirming === 'delete' ? `Delete “${movie.title}”?` : 'Remove the artwork?'}
 		message={confirming === 'delete'
-			? 'The movie and its artwork will be permanently deleted.'
+			? 'The movie, its artwork and its credits will be permanently deleted. The people stay in the catalog.'
 			: 'The image will be deleted. You can upload a new one afterwards.'}
 		confirmLabel={confirming === 'delete' ? 'Delete movie' : 'Remove artwork'}
 		{busy}

@@ -1,7 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Browser smoke test against a running stack (docker compose up), not a dev server:
-// it exercises nginx, the gateway and both gRPC services exactly as a user would.
+// Runs against the Docker stack (docker compose up), through nginx.
 export default defineConfig({
 	testDir: 'e2e',
 	timeout: 60_000,

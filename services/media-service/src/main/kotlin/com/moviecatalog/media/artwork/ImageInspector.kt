@@ -8,27 +8,10 @@ import java.nio.file.Path
 import javax.imageio.ImageIO
 import javax.imageio.ImageReader
 
-enum class ImageFormat(val contentType: String, val imageIoName: String, val extension: String) {
-    JPEG("image/jpeg", "jpeg", "jpg"),
-    PNG("image/png", "png", "png"),
-    ;
-
-    companion object {
-        fun ofContentType(contentType: String): ImageFormat = entries.single { it.contentType == contentType }
-    }
-}
-
-class InspectedImage(val format: ImageFormat, val image: BufferedImage)
-
 /**
- * Decides whether an uploaded file is an image we accept, trusting only its bytes:
- * 1. the format comes from the file's signature (magic bytes), never the declared type or name,
- *    so SVG, GIF and renamed files are rejected;
- * 2. width and height are read from the header and checked *before* decoding, because a small
- *    file can declare enormous dimensions and exhaust memory while its pixels are decoded;
- * 3. only then is the image fully decoded, which rejects corrupt or truncated files. The JPEG
- *    decoder does not fail on a truncated file: it fills the missing area with grey and only
- *    reports a warning ("Premature end of JPEG file"), so any decoder warning is treated as damage.
+ * Trusts only the file bytes: the format comes from the file signature, the dimensions are checked
+ * from the header before decoding (a small file can declare a huge image), and then the image is
+ * decoded. The JPEG decoder only warns on a truncated file, so any warning counts as damage.
  */
 class ImageInspector(private val maxWidth: Int, private val maxHeight: Int) {
     fun inspect(file: Path): InspectedImage {
@@ -79,7 +62,7 @@ class ImageInspector(private val maxWidth: Int, private val maxHeight: Int) {
             }
         }
 
-        /** Scales down to [width] keeping the aspect ratio, or returns null if the image is already narrow enough. */
+        /** Returns null if the image is already narrow enough. */
         fun thumbnail(source: InspectedImage, width: Int): BufferedImage? {
             val image = source.image
             if (image.width <= width) return null

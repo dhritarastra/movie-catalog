@@ -1,24 +1,32 @@
-# Draft contract between the web app and the gateway (docs/PLAN.md §5).
-# Calendar dates are ISO-8601 strings (yyyy-MM-dd); timestamps are ISO-8601 instants.
-# Updates replace every editable field; `version` guards against overwriting a newer edit.
+# Dates are yyyy-MM-dd strings. Updates replace every field; `version` guards against lost updates.
 
 scalar Upload
 
 type Query {
   movies(page: PageInput): MoviePage!
   movie(id: ID!): Movie
-  people(page: PageInput): PersonPage!
+  people(
+    page: PageInput
+    "Only people whose name contains this text, ignoring case. Omitted or blank lists everyone."
+    nameContains: String
+  ): PersonPage!
   person(id: ID!): Person
+  "Movies and people matching the query, best match first. An explicit null limit means the default of 10."
   search(query: String!, limit: Int = 10): [SearchResult!]!
+  "Whether this server can look up posters on TMDB."
+  tmdbPostersEnabled: Boolean!
+  "The poster TMDB finds for the movie's title and release year, or null if it finds none."
+  tmdbPoster(movieId: ID!): TmdbPoster
 }
 
 type Mutation {
-  # Create and update share one input type; update replaces all editable fields.
   createMovie(input: MovieInput!): Movie!
   updateMovie(id: ID!, version: Int!, input: MovieInput!): Movie!
   deleteMovie(id: ID!, version: Int!): ID!
   uploadArtwork(movieId: ID!, version: Int!, file: Upload!): Movie!
   removeArtwork(movieId: ID!, version: Int!): Movie!
+  "Attaches a TMDB poster with the same version check as uploadArtwork."
+  useTmdbPoster(movieId: ID!, version: Int!, tmdbId: Int!): Movie!
 
   createPerson(input: PersonInput!): Person!
   updatePerson(id: ID!, version: Int!, input: PersonInput!): Person!
@@ -75,8 +83,10 @@ type Credit {
   "Only set for cast credits."
   characterName: String
   billingOrder: Int!
-  movie: Movie!
-  person: Person!
+  "Null only if the movie was deleted while this response was being built."
+  movie: Movie
+  "Null only if the person was deleted while this response was being built."
+  person: Person
 }
 
 union SearchResult = Movie | Person
@@ -131,4 +141,12 @@ input UpdateCreditInput {
   type: CreditType!
   characterName: String
   billingOrder: Int!
+}
+
+"A poster found on TMDB (themoviedb.org), shown to the user before they use it."
+type TmdbPoster {
+  tmdbId: Int!
+  title: String!
+  releaseYear: String
+  previewUrl: String!
 }

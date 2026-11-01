@@ -1,44 +1,54 @@
 package com.moviecatalog.catalog.movie
 
+import com.moviecatalog.catalog.common.currentTimestamp
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
+import jakarta.persistence.Id
+import jakarta.persistence.Table
+import jakarta.persistence.Version
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
-data class Movie(
-    val id: UUID,
-    val title: String,
-    val synopsis: String?,
-    val releaseDate: LocalDate?,
-    val runtimeMinutes: Int?,
-    val genres: List<String>,
-    val artworkId: UUID?,
-    val version: Int,
-    val createdAt: Instant,
-    val updatedAt: Instant,
-)
+@Entity
+@Table(name = "movie")
+class Movie(
+    var title: String,
+    var synopsis: String?,
+    var releaseDate: LocalDate?,
+    var runtimeMinutes: Int?,
+    @field:JdbcTypeCode(SqlTypes.ARRAY)
+    var genres: List<String>,
+) {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    var id: UUID? = null
+        protected set
 
-/** Editable fields as received, before validation. */
-data class MovieInput(
-    val title: String,
-    val synopsis: String?,
-    val releaseDate: String?,
-    val runtimeMinutes: Int?,
-    val genres: List<String>,
-)
+    // Owned by media-service, so there is no foreign key.
+    var artworkId: UUID? = null
 
-/** Editable fields after [MovieValidator] has normalised and checked them. */
-data class MovieDraft(
-    val title: String,
-    val synopsis: String?,
-    val releaseDate: LocalDate?,
-    val runtimeMinutes: Int?,
-    val genres: List<String>,
-)
+    // Hibernate checks this on every update and delete, so a stale write fails.
+    @Version
+    var version: Int = 1
+        protected set
 
-data class MoviePage(val movies: List<Movie>, val totalCount: Int)
+    @Column(updatable = false)
+    var createdAt: Instant = currentTimestamp()
+        protected set
 
-/** Result of attaching or removing artwork: the updated movie and the artwork it replaced, if any. */
-data class ArtworkChange(val movie: Movie, val previousArtworkId: UUID?)
+    var updatedAt: Instant = createdAt
+        protected set
 
-/** A deleted movie's ID and the artwork it had, which the gateway then deletes from media. */
-data class DeletedMovie(val id: UUID, val artworkId: UUID?)
+    /**
+     * Called on every accepted change, so Hibernate always runs a version-checked UPDATE,
+     * even when no field changed.
+     */
+    fun markUpdated() {
+        updatedAt = maxOf(currentTimestamp(), updatedAt.plusNanos(1_000))
+    }
+}

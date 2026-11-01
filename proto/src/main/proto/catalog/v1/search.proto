@@ -9,13 +9,13 @@ option java_multiple_files = true;
 option java_package = "com.moviecatalog.catalog.v1";
 
 service SearchService {
-  // Case-insensitive literal substring match on movie titles and person names.
+  // Case-insensitive substring match on titles and names. % and _ match literally.
   rpc Search(SearchRequest) returns (SearchResponse);
 }
 
 message SearchRequest {
-  string query = 1; // trimmed; blank or over-long queries are INVALID_ARGUMENT
-  int32 limit = 2;  // capped by the catalog
+  string query = 1;
+  int32 limit = 2;
 }
 
 message SearchHit {
@@ -25,7 +25,7 @@ message SearchHit {
   }
 }
 
-// Deterministic order: best match first, then by name/title and ID.
+// Best match first: exact, then prefix, then anywhere; ties by text, movies first, then id.
 message SearchResponse {
   repeated SearchHit hits = 1;
 }

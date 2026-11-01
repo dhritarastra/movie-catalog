@@ -1,7 +1,5 @@
 import { graphql } from './generated';
 
-// Every GraphQL operation the app sends. `npm run codegen` turns each into a typed document.
-
 export const MovieCardFields = graphql(`
 	fragment MovieCardFields on Movie {
 		id
@@ -41,6 +39,26 @@ export const MovieDetailFields = graphql(`
 export const MovieQuery = graphql(`
 	query Movie($id: ID!) {
 		movie(id: $id) {
+			...MovieDetailFields
+		}
+		tmdbPostersEnabled
+	}
+`);
+
+export const FindTmdbPosterQuery = graphql(`
+	query FindTmdbPoster($movieId: ID!) {
+		tmdbPoster(movieId: $movieId) {
+			tmdbId
+			title
+			releaseYear
+			previewUrl
+		}
+	}
+`);
+
+export const UseTmdbPosterMutation = graphql(`
+	mutation UseTmdbPoster($movieId: ID!, $version: Int!, $tmdbId: Int!) {
+		useTmdbPoster(movieId: $movieId, version: $version, tmdbId: $tmdbId) {
 			...MovieDetailFields
 		}
 	}
@@ -113,6 +131,16 @@ export const PersonQuery = graphql(`
 	query Person($id: ID!) {
 		person(id: $id) {
 			...PersonDetailFields
+			credits {
+				id
+				type
+				characterName
+				movie {
+					id
+					title
+					releaseDate
+				}
+			}
 		}
 	}
 `);
@@ -136,5 +164,89 @@ export const UpdatePersonMutation = graphql(`
 export const DeletePersonMutation = graphql(`
 	mutation DeletePerson($id: ID!, $version: Int!) {
 		deletePerson(id: $id, version: $version)
+	}
+`);
+
+export const CreditFields = graphql(`
+	fragment CreditFields on Credit {
+		id
+		type
+		characterName
+		billingOrder
+		person {
+			id
+			name
+		}
+	}
+`);
+
+export const MovieCreditsQuery = graphql(`
+	query MovieCredits($id: ID!) {
+		movie(id: $id) {
+			id
+			cast {
+				...CreditFields
+			}
+			creators {
+				...CreditFields
+			}
+		}
+	}
+`);
+
+export const PersonPickerQuery = graphql(`
+	query PersonPicker($nameContains: String) {
+		people(nameContains: $nameContains) {
+			totalCount
+			items {
+				id
+				name
+			}
+		}
+	}
+`);
+
+export const AddCreditMutation = graphql(`
+	mutation AddCredit($input: AddCreditInput!) {
+		addCredit(input: $input) {
+			...CreditFields
+		}
+	}
+`);
+
+export const UpdateCreditMutation = graphql(`
+	mutation UpdateCredit($id: ID!, $input: UpdateCreditInput!) {
+		updateCredit(id: $id, input: $input) {
+			...CreditFields
+		}
+	}
+`);
+
+export const RemoveCreditMutation = graphql(`
+	mutation RemoveCredit($id: ID!) {
+		removeCredit(id: $id)
+	}
+`);
+
+export const SearchQuery = graphql(`
+	query Search($query: String!, $limit: Int) {
+		search(query: $query, limit: $limit) {
+			__typename
+			... on Movie {
+				id
+				title
+				releaseDate
+			}
+			... on Person {
+				id
+				name
+				credits {
+					type
+					movie {
+						id
+					}
+				}
+			}
+		}
 	}
 `);

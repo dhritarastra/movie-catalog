@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { GraphQlRequestError } from './client';
 import { checkFile, MAX_UPLOAD_BYTES, uploadArtwork } from './upload';
 
-/** Just enough of XMLHttpRequest to drive an upload by hand. */
 class FakeXhr {
 	upload: {
 		onprogress: ((e: Partial<ProgressEvent>) => void) | null;

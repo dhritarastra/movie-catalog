@@ -3,6 +3,9 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"engines": {
+		"node": ">=22.18"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
@@ -15,7 +18,8 @@
 		"test:unit": "vitest",
 		"test": "npm run test:unit -- --run",
 		"codegen": "graphql-codegen --config codegen.ts",
-		"test:e2e": "playwright test"
+		"test:e2e": "playwright test",
+		"seed": "node seed/run.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

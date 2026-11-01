@@ -5,7 +5,6 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean
 import org.testcontainers.postgresql.PostgreSQLContainer
 
-/** A Postgres container shared by every test that imports this, through Spring's context cache. */
 @TestConfiguration(proxyBeanMethods = false)
 class TestcontainersConfiguration {
     @Bean

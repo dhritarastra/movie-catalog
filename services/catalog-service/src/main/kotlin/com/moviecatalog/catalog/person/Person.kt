@@ -1,32 +1,45 @@
 package com.moviecatalog.catalog.person
 
+import com.moviecatalog.catalog.common.currentTimestamp
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
+import jakarta.persistence.Id
+import jakarta.persistence.Table
+import jakarta.persistence.Version
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
-/** A cast member or creator. Roles belong to credits, so the same person can be both. */
-data class Person(
-    val id: UUID,
-    val name: String,
-    val bio: String?,
-    val birthDate: LocalDate?,
-    val version: Int,
-    val createdAt: Instant,
-    val updatedAt: Instant,
-)
+@Entity
+@Table(name = "person")
+class Person(
+    var name: String,
+    var bio: String?,
+    var birthDate: LocalDate?,
+) {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    var id: UUID? = null
+        protected set
 
-/** Editable fields as received, before validation. */
-data class PersonInput(
-    val name: String,
-    val bio: String?,
-    val birthDate: String?,
-)
+    @Version
+    var version: Int = 1
+        protected set
 
-/** Editable fields after [PersonValidator] has normalised and checked them. */
-data class PersonDraft(
-    val name: String,
-    val bio: String?,
-    val birthDate: LocalDate?,
-)
+    @Column(updatable = false)
+    var createdAt: Instant = currentTimestamp()
+        protected set
 
-data class PersonPage(val people: List<Person>, val totalCount: Int)
+    var updatedAt: Instant = createdAt
+        protected set
+
+    /**
+     * Called on every accepted change, so Hibernate always runs a version-checked UPDATE,
+     * even when no field changed.
+     */
+    fun markUpdated() {
+        updatedAt = maxOf(currentTimestamp(), updatedAt.plusNanos(1_000))
+    }
+}

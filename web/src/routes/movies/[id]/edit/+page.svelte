@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import MovieForm from '#lib/components/MovieForm.svelte';
-	import { describeError, request } from '#lib/graphql/client.ts';
+	import { describeReadError, request } from '#lib/graphql/client.ts';
 	import type { MovieDetailFieldsFragment, MovieInput } from '#lib/graphql/generated/graphql.ts';
 	import { MovieQuery, UpdateMovieMutation } from '#lib/graphql/operations.ts';
 	import { trackVisit } from '#lib/navigation.ts';
@@ -30,18 +30,15 @@
 					(view = data.movie ? { status: 'ready', movie: data.movie } : { status: 'not-found' })
 			)
 			.catch((error) => {
-				if (error?.name !== 'AbortError') view = { status: 'error', message: describeError(error) };
+				if (error?.name !== 'AbortError')
+					view = { status: 'error', message: describeReadError(error) };
 			});
 		return () => controller.abort();
 	});
 
 	const visit = trackVisit();
 
-	/**
-	 * Saves against the version that was loaded, so a newer edit made elsewhere is never
-	 * overwritten. If the user leaves while it saves, the save still completes; they get the
-	 * toast but are not pulled back to this movie.
-	 */
+	/** If the user leaves while this saves, they still get the toast but aren't taken back. */
 	async function save(movie: MovieDetailFieldsFragment, input: MovieInput) {
 		const stillHere = visit.mark();
 		await request(UpdateMovieMutation, { id: movie.id, version: movie.version, input });
@@ -77,7 +74,7 @@
 {:else}
 	{@const movie = view.movie}
 	<h1>Edit {movie.title}</h1>
-	<!-- Keyed on the version, so reloading after a conflict resets the form to the latest values. -->
+	<!-- Remounts the form with the latest values after a reload. -->
 	{#key movie.version}
 		<MovieForm
 			initial={movie}

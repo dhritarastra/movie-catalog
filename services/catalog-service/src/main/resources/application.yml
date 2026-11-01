@@ -6,14 +6,22 @@ spring:
     username: ${CATALOG_DB_USER:catalog}
     password: ${CATALOG_DB_PASSWORD:catalog}
     hikari:
-      # Milliseconds. Fail fast when the database is unreachable, so health reports it
-      # within seconds rather than after the 30s default.
+      # Fail fast so health reports a lost database within seconds.
       connection-timeout: 5000
+  jpa:
+    hibernate:
+      # Flyway owns the schema; Hibernate only checks it.
+      ddl-auto: validate
   grpc:
     server:
       port: ${CATALOG_GRPC_PORT:9091}
       health:
         schedule:
-          # Refresh the gRPC health status from application health (database included).
           delay: 2s
           period: 5s
+
+catalog:
+  paging:
+    max-limit: 100
+  search:
+    max-limit: 50

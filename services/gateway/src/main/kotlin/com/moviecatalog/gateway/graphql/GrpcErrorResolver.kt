@@ -12,10 +12,8 @@ import org.springframework.graphql.execution.DataFetcherExceptionResolverAdapter
 import org.springframework.stereotype.Component
 
 /**
- * Turns failures from downstream gRPC calls (and the gateway's own checks) into GraphQL errors
- * with a stable `extensions.code`. Validation failures also carry `extensions.fieldErrors`,
- * renamed from protobuf's snake_case to the schema's camelCase so forms can match them to inputs.
- * Unexpected failures are logged and reported without internal details.
+ * Turns gRPC errors into GraphQL errors with a stable `extensions.code`. Field errors are
+ * renamed to camelCase to match the schema. Unexpected errors are logged, not shown.
  */
 @Component
 class GrpcErrorResolver : DataFetcherExceptionResolverAdapter() {
@@ -67,7 +65,6 @@ class GrpcErrorResolver : DataFetcherExceptionResolverAdapter() {
             .build()
 
     companion object {
-        /** `runtime_minutes` -> `runtimeMinutes`; dotted paths such as `page.limit` keep their dots. */
         fun toCamelCase(field: String): String = field.replace(Regex("_([a-z])")) { it.groupValues[1].uppercase() }
     }
 }

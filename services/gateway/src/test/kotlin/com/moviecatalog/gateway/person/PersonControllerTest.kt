@@ -20,7 +20,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.graphql.ExecutionGraphQlService
 import org.springframework.graphql.test.tester.ExecutionGraphQlServiceTester
 
-/** The person queries and mutations with the catalog mocked: argument mapping, nulls and error codes. */
 @SpringBootTest
 class PersonControllerTest(@Autowired graphQlService: ExecutionGraphQlService) {
     @MockkBean
@@ -43,6 +42,21 @@ class PersonControllerTest(@Autowired graphQlService: ExecutionGraphQlService) {
             .path("people.items[0].name").entity(String::class.java).isEqualTo("Amy Adams")
             .path("people.items[0].bio").valueIsNull()
             .path("people.items[0].birthDate").entity(String::class.java).isEqualTo("1974-08-20")
+    }
+
+    @Test
+    fun `passes a name filter through, and sends none when it is omitted`() {
+        every { catalog.listPeople(0, 20, "amy") } returns ListPeopleResponse.newBuilder().setTotalCount(0).build()
+
+        graphQl.document("""{ people(nameContains: "amy") { totalCount } }""")
+            .execute()
+            .path("people.totalCount").entity(Int::class.java).isEqualTo(0)
+
+        verify(exactly = 1) { catalog.listPeople(0, 20, "amy") }
+
+        every { catalog.listPeople(0, 20, "") } returns ListPeopleResponse.newBuilder().setTotalCount(0).build()
+        graphQl.document("{ people { totalCount } }").execute().path("people.totalCount").entity(Int::class.java).isEqualTo(0)
+        verify(exactly = 1) { catalog.listPeople(0, 20, "") }
     }
 
     @Test

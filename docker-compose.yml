@@ -1,27 +1,22 @@
 name: movie-catalog
 
-# The whole stack: `docker compose up --build`, then open http://localhost:3000.
-# Only the web app (and Postgres, for running services with bootRun) is published, and only
-# on this machine. The services start in dependency order once each reports healthy.
+# Run with `docker compose up --build`, then open http://localhost:3000.
 services:
   postgres:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      # Read by the init script to create one role and database per service.
+      # Used by the init script to create one database per service.
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:-catalog}
       MEDIA_DB_PASSWORD: ${MEDIA_DB_PASSWORD:-media}
     ports:
-      # This machine only: these are development credentials.
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      # Check over TCP. During first-time setup the init script runs on a temporary server
-      # that only listens on the Unix socket, so a socket check could pass before the
-      # catalog and media databases exist.
+      # Check over TCP: during first setup the server only listens on the socket.
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
       interval: 5s
       timeout: 3s
@@ -29,10 +24,9 @@ services:
 
   catalog-service:
     build:
+      # Repository root, so the build can reach build-logic and proto.
       context: .
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE: catalog-service
+      dockerfile: services/catalog-service/Dockerfile
     environment:
       CATALOG_DB_URL: jdbc:postgresql://postgres:5432/catalog
       CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:-catalog}
@@ -48,10 +42,9 @@ services:
 
   media-service:
     build:
+      # Repository root, so the build can reach build-logic and proto.
       context: .
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE: media-service
+      dockerfile: services/media-service/Dockerfile
     environment:
       MEDIA_DB_URL: jdbc:postgresql://postgres:5432/media
       MEDIA_DB_PASSWORD: ${MEDIA_DB_PASSWORD:-media}
@@ -70,13 +63,14 @@ services:
 
   gateway:
     build:
+      # Repository root, so the build can reach build-logic and proto.
       context: .
-      dockerfile: services/Dockerfile
-      args:
-        SERVICE: gateway
+      dockerfile: services/gateway/Dockerfile
     environment:
       CATALOG_GRPC_TARGET: catalog-service:9091
       MEDIA_GRPC_TARGET: media-service:9092
+      # Optional: enables "Find poster on TMDB".
+      TMDB_API_TOKEN: ${TMDB_API_TOKEN:-}
     depends_on:
       catalog-service:
         condition: service_healthy
@@ -101,6 +95,20 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Demo data: `docker compose run --rm seed` on an empty catalog.
+  seed:
+    image: node:22-alpine
+    profiles: ["seed"]
+    command: ["node", "/seed/run.ts"]
+    environment:
+      SEED_URL: http://web/graphql
+      TMDB_API_TOKEN: ${TMDB_API_TOKEN:-}
+    volumes:
+      - ./web/seed:/seed:ro
+    depends_on:
+      web:
+        condition: service_healthy
 
 volumes:
   postgres-data:

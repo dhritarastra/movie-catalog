@@ -7,6 +7,7 @@ import com.moviecatalog.catalog.v1.ClearArtworkRequest
 import com.moviecatalog.catalog.v1.CreateMovieRequest
 import com.moviecatalog.catalog.v1.DeleteMovieRequest
 import com.moviecatalog.catalog.v1.GetMovieRequest
+import com.moviecatalog.catalog.v1.GetMoviesByIdsRequest
 import com.moviecatalog.catalog.v1.ListMoviesRequest
 import com.moviecatalog.catalog.v1.MovieFields
 import com.moviecatalog.catalog.v1.MovieServiceGrpc
@@ -27,7 +28,6 @@ import org.springframework.jdbc.core.simple.JdbcClient
 import java.util.UUID
 import com.moviecatalog.catalog.v1.Movie as MovieProto
 
-/** Drives the real gRPC endpoint in-process against Postgres: mapping, rules and SQL together. */
 @CatalogGrpcTest
 class MovieGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
     private val channel: ManagedChannel = InProcessChannelBuilder.forName(CATALOG_IN_PROCESS_NAME).directExecutor().build()
@@ -166,7 +166,7 @@ class MovieGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
         val artwork = UUID.randomUUID().toString()
         movies.setArtwork(setArtwork(movie.id, version = 1, artworkId = artwork))
 
-        // Only the title is sent: synopsis and runtime are cleared, and the empty list clears the genres.
+        // Only the title is sent, so the other fields are cleared.
         val updated = movies.updateMovie(update(movie.id, version = 2, MovieFields.newBuilder().setTitle("  Arrival (2016) ")))
 
         assertThat(updated.title).isEqualTo("Arrival (2016)")
@@ -257,6 +257,47 @@ class MovieGrpcServiceTest(@Autowired private val jdbc: JdbcClient) {
 
         val stale = assertThrows<StatusRuntimeException> { movies.clearArtwork(clear(movie.id, version = 2)) }
         assertThat(stale.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+    @Test
+    fun `saving identical fields still advances the version and rejects the old version`() {
+        val fields = MovieFields.newBuilder().setTitle("Arrival")
+        val movie = create(fields)
+        val saved = movies.updateMovie(update(movie.id, movie.version, fields))
+
+        assertThat(saved.version).isEqualTo(2)
+        assertThat(get(movie.id).version).isEqualTo(2)
+        val stale = assertThrows<StatusRuntimeException> { movies.updateMovie(update(movie.id, movie.version, fields)) }
+        assertThat(stale.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+    @Test
+    fun `unchanged artwork mutations still advance the version exactly once`() {
+        val movie = create(MovieFields.newBuilder().setTitle("Arrival"))
+        val cleared = movies.clearArtwork(clear(movie.id, version = 1))
+        assertThat(cleared.movie.version).isEqualTo(2)
+        assertThat(cleared.hasPreviousArtworkId()).isFalse()
+
+        val artwork = UUID.randomUUID().toString()
+        movies.setArtwork(setArtwork(movie.id, version = 2, artworkId = artwork))
+        val same = movies.setArtwork(setArtwork(movie.id, version = 3, artworkId = artwork))
+        assertThat(same.movie.version).isEqualTo(4)
+        assertThat(same.previousArtworkId).isEqualTo(artwork)
+        assertThat(get(movie.id).version).isEqualTo(4)
+    }
+
+    @Test
+    fun `looks up several movies at once, leaving out ids that do not exist`() {
+        val arrival = create(MovieFields.newBuilder().setTitle("Arrival"))
+        val dune = create(MovieFields.newBuilder().setTitle("Dune"))
+        val missing = UUID.randomUUID().toString()
+
+        val found = movies.getMoviesByIds(GetMoviesByIdsRequest.newBuilder().addAllIds(listOf(arrival.id, dune.id, missing)).build())
+
+        assertThat(found.moviesMap.keys).containsExactlyInAnyOrder(arrival.id, dune.id)
+        assertThat(found.moviesMap[dune.id]!!.title).isEqualTo("Dune")
+        val malformed = assertThrows<StatusRuntimeException> { movies.getMoviesByIds(GetMoviesByIdsRequest.newBuilder().addIds("42").build()) }
+        assertThat(badRequestFields(malformed)).containsExactly("ids")
     }
 
     private fun get(id: String): MovieProto = movies.getMovie(GetMovieRequest.newBuilder().setId(id).build())

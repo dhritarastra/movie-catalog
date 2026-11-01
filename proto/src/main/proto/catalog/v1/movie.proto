@@ -8,10 +8,8 @@ import "google/protobuf/timestamp.proto";
 option java_multiple_files = true;
 option java_package = "com.moviecatalog.catalog.v1";
 
-// IDs are UUID strings. Calendar dates are ISO-8601 strings (yyyy-MM-dd) validated by
-// the catalog. `optional` marks nullable fields so "no value" is distinguishable from "".
-// Versions start at 1. Proto3 sends 0 when expected_version is omitted, so any
-// expected_version below 1 is INVALID_ARGUMENT rather than a version to compare against.
+// IDs are UUIDs and dates are yyyy-MM-dd strings. Versions start at 1; an expected_version
+// below 1 is INVALID_ARGUMENT (proto3 sends 0 for a missing field).
 message Movie {
   string id = 1;
   string title = 2;
@@ -20,13 +18,12 @@ message Movie {
   optional int32 runtime_minutes = 5;
   repeated string genres = 6;
   optional string artwork_id = 7;
-  int32 version = 8; // starts at 1; increases by one on every change
+  int32 version = 8;
   google.protobuf.Timestamp created_at = 9;
   google.protobuf.Timestamp updated_at = 10;
 }
 
-// Editable fields. Create uses them as-is; Update replaces every editable field with them.
-// Artwork is deliberately absent: it changes only through SetArtwork / ClearArtwork.
+// Update replaces every field. Artwork changes only through SetArtwork and ClearArtwork.
 message MovieFields {
   string title = 1;
   optional string synopsis = 2;
@@ -42,8 +39,7 @@ service MovieService {
   rpc ListMovies(ListMoviesRequest) returns (ListMoviesResponse);
   rpc UpdateMovie(UpdateMovieRequest) returns (Movie);
   rpc DeleteMovie(DeleteMovieRequest) returns (DeleteMovieResponse);
-  // Attach/remove artwork atomically with the version check, and return the artwork ID
-  // that was replaced in the same transaction so the gateway deletes the right file.
+  // Return the replaced artwork ID so the gateway deletes the right file.
   rpc SetArtwork(SetArtworkRequest) returns (ArtworkChangeResponse);
   rpc ClearArtwork(ClearArtworkRequest) returns (ArtworkChangeResponse);
 }
@@ -60,7 +56,7 @@ message GetMoviesByIdsRequest {
   repeated string ids = 1;
 }
 
-// Keyed by movie ID. IDs that do not exist are absent from the map.
+// Unknown IDs are left out.
 message GetMoviesByIdsResponse {
   map<string, Movie> movies = 1;
 }
@@ -87,7 +83,7 @@ message DeleteMovieRequest {
 
 message DeleteMovieResponse {
   string id = 1;
-  // Artwork that was attached when the movie was deleted, for best-effort cleanup.
+  // So the gateway can delete the file.
   optional string artwork_id = 2;
 }
 

@@ -3,7 +3,6 @@ package com.moviecatalog.gateway.person
 import com.moviecatalog.gateway.graphql.toIsoString
 import com.moviecatalog.catalog.v1.Person as PersonProto
 
-/** The GraphQL `Person` as data, with unset optional protobuf fields turned back into nulls. */
 data class PersonView(
     val id: String,
     val name: String,
@@ -26,8 +25,3 @@ data class PersonView(
             )
     }
 }
-
-data class PersonPageView(val items: List<PersonView>, val totalCount: Int, val offset: Int, val limit: Int)
-
-/** `PersonInput` as received; the catalog validates and normalises it. */
-data class PersonInput(val name: String, val bio: String?, val birthDate: String?)

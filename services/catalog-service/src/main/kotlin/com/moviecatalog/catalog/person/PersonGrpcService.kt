@@ -6,6 +6,8 @@ import com.moviecatalog.catalog.common.toTimestamp
 import com.moviecatalog.catalog.v1.CreatePersonRequest
 import com.moviecatalog.catalog.v1.DeletePersonRequest
 import com.moviecatalog.catalog.v1.DeletePersonResponse
+import com.moviecatalog.catalog.v1.GetPeopleByIdsRequest
+import com.moviecatalog.catalog.v1.GetPeopleByIdsResponse
 import com.moviecatalog.catalog.v1.GetPersonRequest
 import com.moviecatalog.catalog.v1.ListPeopleRequest
 import com.moviecatalog.catalog.v1.ListPeopleResponse
@@ -16,10 +18,6 @@ import io.grpc.stub.StreamObserver
 import org.springframework.stereotype.Service
 import com.moviecatalog.catalog.v1.Person as PersonProto
 
-/**
- * gRPC endpoint for people, shaped like MovieGrpcService. GetPeopleByIds still returns
- * UNIMPLEMENTED: it arrives with credits, which are its only caller.
- */
 @Service
 class PersonGrpcService(private val people: PersonService) : PersonServiceGrpc.PersonServiceImplBase() {
     override fun createPerson(request: CreatePersonRequest, responseObserver: StreamObserver<PersonProto>) =
@@ -28,12 +26,19 @@ class PersonGrpcService(private val people: PersonService) : PersonServiceGrpc.P
     override fun getPerson(request: GetPersonRequest, responseObserver: StreamObserver<PersonProto>) =
         responseObserver.complete(people.get(RequestArguments.uuid("id", request.id)).toProto())
 
+    override fun getPeopleByIds(request: GetPeopleByIdsRequest, responseObserver: StreamObserver<GetPeopleByIdsResponse>) {
+        val ids = request.idsList.map { RequestArguments.uuid("ids", it) }
+        responseObserver.complete(
+            GetPeopleByIdsResponse.newBuilder().putAllPeople(people.getAll(ids).associate { it.id.toString() to it.toProto() }).build(),
+        )
+    }
+
     override fun listPeople(request: ListPeopleRequest, responseObserver: StreamObserver<ListPeopleResponse>) {
-        val page = people.list(RequestArguments.page(request.page.offset, request.page.limit))
+        val page = people.list(request.page.offset, request.page.limit, request.nameContains)
         responseObserver.complete(
             ListPeopleResponse.newBuilder()
-                .addAllPeople(page.people.map { it.toProto() })
-                .setTotalCount(page.totalCount)
+                .addAllPeople(page.content.map { it.toProto() })
+                .setTotalCount(page.totalElements.toInt())
                 .build(),
         )
     }
@@ -55,16 +60,16 @@ class PersonGrpcService(private val people: PersonService) : PersonServiceGrpc.P
 }
 
 private fun PersonFields.toInput() =
-    PersonInput(
+    PersonInput.normalised(
         name = name,
         bio = if (hasBio()) bio else null,
         birthDate = if (hasBirthDate()) birthDate else null,
     )
 
-// Receivers are named explicitly: inside the builder's apply, a bare `bio` would be the builder's own field.
-private fun Person.toProto(): PersonProto =
+// Inside apply, a bare bio would be the builder's own field.
+internal fun Person.toProto(): PersonProto =
     PersonProto.newBuilder()
-        .setId(id.toString())
+        .setId(requireNotNull(id) { "a saved person has an id" }.toString())
         .setName(name)
         .setVersion(version)
         .setCreatedAt(createdAt.toTimestamp())

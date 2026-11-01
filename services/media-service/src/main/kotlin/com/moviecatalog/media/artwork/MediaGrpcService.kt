@@ -1,6 +1,7 @@
 package com.moviecatalog.media.artwork
 
 import com.google.protobuf.Timestamp
+import com.moviecatalog.media.config.MediaProperties
 import com.moviecatalog.media.v1.DeleteArtworkRequest
 import com.moviecatalog.media.v1.DeleteArtworkResponse
 import com.moviecatalog.media.v1.DownloadArtworkRequest
@@ -20,7 +21,6 @@ import java.util.UUID
 import com.moviecatalog.media.v1.Artwork as ArtworkProto
 import com.moviecatalog.media.v1.ArtworkVariant as ArtworkVariantProto
 
-/** gRPC endpoint for artwork. Unary errors are mapped by [MediaGrpcExceptionHandler]. */
 @Service
 class MediaGrpcService(
     private val artwork: ArtworkService,
@@ -37,8 +37,7 @@ class MediaGrpcService(
         val variant = if (request.variant == ArtworkVariantProto.ARTWORK_VARIANT_THUMBNAIL) ArtworkVariant.THUMBNAIL else ArtworkVariant.FULL
         val id = parseId(request.id)
         val file = artwork.open(id, variant)
-        // Opened before anything is sent, so a missing or unreadable file fails the whole call
-        // cleanly rather than part-way through a response the gateway has started relaying.
+        // Open the file before sending anything, so a missing file fails the call cleanly.
         val input = try {
             Files.newInputStream(file.path)
         } catch (e: NoSuchFileException) {
@@ -52,7 +51,7 @@ class MediaGrpcService(
                     .setSha256(file.artwork.sha256),
             )
             .build()
-        ChunkedDownload(responseObserver as ServerCallStreamObserver<DownloadArtworkResponse>, metadata, input).start()
+        ChunkedDownload(responseObserver as ServerCallStreamObserver<DownloadArtworkResponse>, metadata, input, properties.downloadChunkBytes).start()
     }
 
     override fun deleteArtwork(request: DeleteArtworkRequest, responseObserver: StreamObserver<DeleteArtworkResponse>) {
@@ -70,10 +69,6 @@ class MediaGrpcService(
             log.error("Upload failed", e)
             Status.INTERNAL.withDescription("The upload could not be stored").asException()
         }
-
-    companion object {
-        const val CHUNK_BYTES = 64 * 1024
-    }
 }
 
 fun Artwork.toProto(): ArtworkProto =

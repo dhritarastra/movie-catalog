@@ -1,7 +1,7 @@
 package com.moviecatalog.gateway.grpc
 
 import com.google.protobuf.ByteString
-import com.moviecatalog.gateway.GatewayProperties
+import com.moviecatalog.gateway.config.GatewayProperties
 import com.moviecatalog.media.v1.Artwork
 import com.moviecatalog.media.v1.ArtworkVariant
 import com.moviecatalog.media.v1.DeleteArtworkRequest
@@ -21,9 +21,6 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 
-/** What the gateway knows about a file before streaming it. */
-data class UploadSource(val contentType: String, val sizeBytes: Long, val filename: String, val open: () -> InputStream)
-
 @Component
 class MediaClient(
     private val async: MediaServiceGrpc.MediaServiceStub,
@@ -31,24 +28,22 @@ class MediaClient(
     private val properties: GatewayProperties,
 ) {
     /**
-     * Streams [source] to media in 64 KiB chunks and waits for the stored artwork.
-     *
-     * Chunks are written only while the call reports it is ready, from gRPC's on-ready callback,
-     * so a slow media service applies backpressure instead of the gateway buffering the whole
-     * file in memory. If media fails the call early (for example, too large), sending stops.
+     * Writes chunks only while the call is ready for more, so a slow media service slows the upload
+     * down instead of the whole file being buffered in memory.
      */
     fun upload(source: UploadSource): Artwork {
         val result = CompletableFuture<Artwork>()
         val stub = async.withDeadlineAfter(properties.mediaUploadDeadline.toMillis(), TimeUnit.MILLISECONDS)
-        stub.uploadArtwork(ChunkWriter(source, result))
+        stub.uploadArtwork(ChunkWriter(source, result, properties.mediaUploadChunkBytes))
         return try {
+            // The deadline ends the call; the extra time lets its error reach this thread.
             result.get(properties.mediaUploadDeadline.toMillis() + 5_000, TimeUnit.MILLISECONDS)
         } catch (e: ExecutionException) {
             throw e.cause as? StatusRuntimeException ?: Status.INTERNAL.withCause(e.cause).asRuntimeException()
         }
     }
 
-    /** Returns the response stream: one metadata message, then chunks. Errors surface when it is read. */
+    /** Errors show up while the stream is read. */
     fun download(id: String, variant: ArtworkVariant): Iterator<DownloadArtworkResponse> =
         blocking.withDeadlineAfter(properties.mediaDownloadDeadline.toMillis(), TimeUnit.MILLISECONDS)
             .downloadArtwork(DownloadArtworkRequest.newBuilder().setId(id).setVariant(variant).build())
@@ -61,15 +56,15 @@ class MediaClient(
     private class ChunkWriter(
         private val source: UploadSource,
         private val result: CompletableFuture<Artwork>,
+        chunkBytes: Int,
     ) : ClientResponseObserver<UploadArtworkRequest, Artwork> {
-        private val buffer = ByteArray(CHUNK_BYTES)
+        private val buffer = ByteArray(chunkBytes)
         private var input: InputStream? = null
 
         @Volatile
         private var done = false
 
         override fun beforeStart(requests: ClientCallStreamObserver<UploadArtworkRequest>) {
-            // gRPC runs this whenever the transport can take more; write until it cannot.
             requests.setOnReadyHandler {
                 try {
                     while (requests.isReady && !done) writeNext(requests)
@@ -123,9 +118,5 @@ class MediaClient(
         private fun closeInput() {
             runCatching { input?.close() }
         }
-    }
-
-    companion object {
-        const val CHUNK_BYTES = 64 * 1024
     }
 }

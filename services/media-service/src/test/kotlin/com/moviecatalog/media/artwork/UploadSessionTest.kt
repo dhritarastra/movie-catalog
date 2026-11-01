@@ -1,6 +1,7 @@
 package com.moviecatalog.media.artwork
 
 import com.google.protobuf.ByteString
+import com.moviecatalog.media.config.MediaProperties
 import com.moviecatalog.media.v1.UploadArtworkRequest
 import com.moviecatalog.media.v1.UploadMetadata
 import io.grpc.Status
@@ -17,12 +18,10 @@ import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
-import java.time.Instant
 import java.util.HexFormat
 import java.util.UUID
 import com.moviecatalog.media.v1.Artwork as ArtworkProto
 
-/** The streaming protocol on its own: ordering rules, the size limit and clean-up, with storage mocked out. */
 class UploadSessionTest {
     @TempDir
     lateinit var dir: Path
@@ -34,9 +33,9 @@ class UploadSessionTest {
 
     @BeforeEach
     fun setUp() {
-        storage = ArtworkStorage(MediaProperties(dir, MAX_BYTES, 100, 100, 10))
+        storage = ArtworkStorage(MediaProperties(dir, MAX_BYTES, 100, 100, 10, 64 * 1024))
         every { service.store(any(), any(), any()) } answers {
-            Artwork(UUID.randomUUID(), ImageFormat.PNG, secondArg(), 1, 1, thirdArg(), Instant.now())
+            Artwork(UUID.randomUUID(), ImageFormat.PNG, secondArg(), 1, 1, thirdArg())
         }
     }
 
@@ -48,7 +47,7 @@ class UploadSessionTest {
         val stored = slot<Path>()
         every { service.store(capture(stored), any(), any()) } answers {
             assertThat(Files.readAllBytes(stored.captured)).isEqualTo(bytes)
-            Artwork(UUID.randomUUID(), ImageFormat.PNG, secondArg(), 1, 1, thirdArg(), Instant.now())
+            Artwork(UUID.randomUUID(), ImageFormat.PNG, secondArg(), 1, 1, thirdArg())
         }
 
         session().apply {
