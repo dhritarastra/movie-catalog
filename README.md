@@ -40,7 +40,8 @@ To stop, run `docker compose down`. To also **delete all data** (movies and uplo
 run `docker compose down -v`.
 
 Only the web app (port 3000) and Postgres (5432, for development) are published, and only on
-`127.0.0.1`. To change ports or passwords, copy `.env.example` to `.env` and edit it.
+`127.0.0.1`. To change ports (`WEB_PORT`, `POSTGRES_PORT`) or passwords, or to keep a TMDB token
+(`TMDB_API_TOKEN`, optional, see below), copy `.env.example` to `.env` and edit it.
 
 ### Demo data
 
@@ -57,7 +58,7 @@ artwork, to show the placeholder.
 
 By default every other movie gets the same original abstract poster. To use the films' real
 posters, get a free API Read Access Token from [TMDB](https://www.themoviedb.org/settings/api)
-and pass it in when seeding:
+and pass it in when seeding, or set `TMDB_API_TOKEN` in `.env`:
 
 ```bash
 TMDB_API_TOKEN=<your token> docker compose run --rm seed
@@ -76,8 +77,9 @@ the same reset lets you start again. During local development,
 
 With the same token, a movie's "Add artwork" section offers **Find poster on TMDB**. The gateway
 searches TMDB by the movie's title and release year and shows the poster it finds; the user checks
-it and chooses **Use this poster**, which attaches it exactly like an uploaded image. Start the
-stack with the token in the environment to turn it on:
+it and chooses **Use this poster**, which attaches it exactly like an uploaded image. While it is
+being attached the file upload is locked, and the other way round, so the two never save at once.
+Start the stack with the token in the environment (or in `.env`) to turn it on:
 
 ```bash
 TMDB_API_TOKEN=<your token> docker compose up --build --wait
@@ -85,7 +87,8 @@ TMDB_API_TOKEN=<your token> docker compose up --build --wait
 
 Without a token the button is hidden. The token stays on the server; the browser never sees it.
 
-This product uses the TMDB API but is not endorsed or certified by TMDB.
+This product uses the TMDB API but is not endorsed or certified by TMDB. The app shows this
+notice with TMDB's logo on its About page, linked from the footer.
 
 ## Develop locally
 
@@ -174,8 +177,11 @@ lint rules.
 `web/e2e/smoke.spec.ts` drives one user flow in Chromium against the running stack, through nginx
 and the real services:
 
+- see the About page credit TMDB with its logo
 - see a movie list that timed out say to try again, and load it with Retry
 - create a movie, upload artwork and see it displayed, and reload the movie's URL
+- check that a TMDB poster and a chosen file are never saved at the same time, with TMDB faked in
+  the browser so no token is needed
 - check that bad uploads are refused with a message
 - edit the movie, checking that the form is locked while the save is in flight
 - recover from a conflict: an edit is refused because someone else saved first, and Reload

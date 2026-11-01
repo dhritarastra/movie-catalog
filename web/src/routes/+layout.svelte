@@ -64,6 +64,12 @@
 	{@render children()}
 </main>
 
+<footer class="site-footer">
+	<div class="container">
+		<a href={resolve('/about')}>About and credits</a>
+	</div>
+</footer>
+
 <Toasts />
 
 <style>
@@ -128,6 +134,16 @@
 		background: var(--surface);
 		color: var(--text);
 		font: inherit;
+	}
+
+	.site-footer {
+		border-top: 1px solid var(--border);
+		padding-block: 1rem;
+		font-size: 0.875rem;
+	}
+
+	.site-footer a {
+		color: var(--text-muted);
 	}
 
 	@media (max-width: 600px) {

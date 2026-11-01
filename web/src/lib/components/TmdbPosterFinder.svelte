@@ -19,11 +19,20 @@
 		version: number;
 		// True while a chosen file is uploading.
 		disabled: boolean;
+		// True while the poster is being attached, so the parent can lock its file upload.
+		saving?: boolean;
 		onUploaded(movie: MovieDetailFieldsFragment): void;
 		onReload(): void;
 	}
 
-	let { movieId, version, disabled, onUploaded, onReload }: Props = $props();
+	let {
+		movieId,
+		version,
+		disabled,
+		saving = $bindable(false),
+		onUploaded,
+		onReload
+	}: Props = $props();
 
 	type Poster = NonNullable<FindTmdbPosterResult['tmdbPoster']>;
 	type Step =
@@ -59,8 +68,10 @@
 	}
 
 	async function use(poster: Poster) {
+		if (disabled || saving) return;
 		const stillHere = visit.mark();
 		step = { name: 'saving', poster };
+		saving = true;
 		try {
 			const { useTmdbPoster } = await request(UseTmdbPosterMutation, {
 				movieId,
@@ -84,6 +95,8 @@
 				message: describeError(error),
 				reload: code === 'CONFLICT' || code === 'SERVICE_UNAVAILABLE'
 			};
+		} finally {
+			saving = false;
 		}
 	}
 </script>
@@ -117,7 +130,7 @@
 					class="button primary"
 					type="button"
 					onclick={() => use(poster)}
-					disabled={step.name === 'saving'}
+					disabled={disabled || step.name === 'saving'}
 				>
 					{step.name === 'saving' ? 'Saving…' : 'Use this poster'}
 				</button>

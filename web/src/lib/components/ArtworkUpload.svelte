@@ -44,7 +44,10 @@
 		};
 	});
 
+	let tmdbSaving = $state(false);
 	const busy = $derived(phase.name === 'uploading' || phase.name === 'processing');
+	// One artwork change at a time: both send the same version, so the second would conflict.
+	const locked = $derived(busy || tmdbSaving);
 	const percent = $derived(phase.name === 'uploading' ? Math.round(phase.progress * 100) : 0);
 	// Announce progress in 25% steps rather than every event.
 	const announcement = $derived(
@@ -65,7 +68,7 @@
 	}
 
 	async function start() {
-		if (!file || busy) return;
+		if (!file || locked) return;
 		const stillHere = visit.mark();
 		phase = { name: 'uploading', progress: 0 };
 		handle = uploadArtwork(movieId, version, file, {
@@ -112,7 +115,7 @@
 	<p class="muted">JPEG or PNG, up to 5 MB.</p>
 
 	<div class="picker">
-		<label class="button" for="artwork-file" aria-disabled={busy}>Choose image</label>
+		<label class="button" for="artwork-file" aria-disabled={locked}>Choose image</label>
 		<input
 			id="artwork-file"
 			class="visually-hidden"
@@ -120,7 +123,7 @@
 			accept={ACCEPTED_TYPES.join(',')}
 			bind:this={input}
 			onchange={choose}
-			disabled={busy}
+			disabled={locked}
 			aria-describedby={fileError ? 'artwork-file-error' : undefined}
 		/>
 		<span class="muted filename"
@@ -129,7 +132,14 @@
 				: 'No file chosen'}</span
 		>
 		{#if tmdb}
-			<TmdbPosterFinder {movieId} {version} disabled={busy} {onUploaded} {onReload} />
+			<TmdbPosterFinder
+				{movieId}
+				{version}
+				disabled={busy}
+				bind:saving={tmdbSaving}
+				{onUploaded}
+				{onReload}
+			/>
 		{/if}
 	</div>
 	{#if fileError}<p class="error" id="artwork-file-error" role="alert">{fileError}</p>{/if}
@@ -163,7 +173,7 @@
 		{#if phase.name === 'uploading'}
 			<button class="button" type="button" onclick={() => handle?.cancel()}>Cancel upload</button>
 		{/if}
-		<button class="button primary" type="button" onclick={start} disabled={!file || busy}>
+		<button class="button primary" type="button" onclick={start} disabled={!file || locked}>
 			{busy ? 'Uploading…' : 'Upload'}
 		</button>
 	</div>

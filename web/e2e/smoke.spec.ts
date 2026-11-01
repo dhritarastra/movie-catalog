@@ -18,6 +18,17 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByRole('heading', { name: 'Movies', level: 1 })).toBeVisible();
 	});
 
+	await test.step('the About page credits TMDB with its logo', async () => {
+		await page.getByRole('link', { name: 'About and credits' }).click();
+		await expect(page.getByRole('heading', { name: 'About', level: 1 })).toBeVisible();
+		await expect(
+			page.getByText('This product uses the TMDB API but is not endorsed or certified by TMDB.')
+		).toBeVisible();
+		await expectImageLoaded(page, 'The Movie Database (TMDB)');
+		await page.goBack();
+		await expect(page.getByRole('heading', { name: 'Movies', level: 1 })).toBeVisible();
+	});
+
 	await test.step('a list that timed out says to try again, and Retry loads it', async () => {
 		await page.route('**/graphql', async (route) => {
 			if (operationName(route.request()) !== 'Movies') return route.fallback();
@@ -69,6 +80,66 @@ test('create, edit and delete a movie with artwork, a person and their credits, 
 		await expect(page.getByText('Artwork updated.')).toBeVisible();
 		await expectImageLoaded(page, `Artwork for ${title}`);
 		await expect(page.getByRole('heading', { name: 'Replace artwork' })).toBeVisible();
+	});
+
+	await test.step('a TMDB poster and a chosen file are never saved at the same time', async () => {
+		// TMDB is faked in the browser, so this runs without a token and never calls TMDB.
+		await page.route('**/graphql', async (route) => {
+			const operation = operationName(route.request());
+			if (operation === 'Movie') {
+				const response = await route.fetch();
+				const body = await response.json();
+				body.data.tmdbPostersEnabled = true;
+				return route.fulfill({ response, json: body });
+			}
+			if (operation === 'FindTmdbPoster') {
+				return route.fulfill({
+					json: {
+						data: {
+							tmdbPoster: {
+								tmdbId: 1,
+								title,
+								releaseYear: '2017',
+								previewUrl: 'https://image.tmdb.org/t/p/w342/smoke.png'
+							}
+						}
+					}
+				});
+			}
+			return route.fallback();
+		});
+		await page.route('https://image.tmdb.org/**', (route) =>
+			route.fulfill({ contentType: 'image/png', body: png(342, 513) })
+		);
+		await page.reload();
+		await page.getByRole('button', { name: 'Find poster on TMDB' }).click();
+		const usePoster = page.getByRole('button', { name: 'Use this poster' });
+		const upload = page.getByRole('button', { name: 'Upload', exact: true });
+		await expect(usePoster).toBeEnabled();
+		await chooseFile(page, 'second.png', 'image/png', png(600, 900));
+		await expect(upload).toBeEnabled();
+
+		const attach = await holdResponse(page, 'UseTmdbPoster', { code: 'TMDB_UNAVAILABLE' });
+		await usePoster.click();
+		await attach.answered;
+		await expect(upload).toBeDisabled();
+		await expect(page.locator('#artwork-file')).toBeDisabled();
+		attach.release();
+		await expect(upload).toBeEnabled();
+
+		await page.getByRole('button', { name: 'Try again' }).click();
+		await expect(usePoster).toBeEnabled();
+		const sending = await holdResponse(
+			page,
+			(request) => request.headers()['content-type']?.startsWith('multipart/form-data') ?? false
+		);
+		await upload.click();
+		await sending.answered;
+		await expect(usePoster).toBeDisabled();
+		sending.release();
+		await expect(page.getByText('Artwork updated.')).toBeVisible();
+		await expect(usePoster).toBeEnabled();
+		await page.unrouteAll({ behavior: 'wait' });
 	});
 
 	await test.step('the movie survives a reload of its own URL', async () => {
@@ -802,9 +873,13 @@ async function renameElsewhere(page: Page, id: string, newTitle: string) {
 /** Holds the response to the next `operation` request until `release()` is called. */
 async function holdResponse(
 	page: Page,
-	operation: string,
+	operation: string | ((request: Request) => boolean),
 	error?: { code: string; fieldErrors?: { field: string; message: string }[] }
 ) {
+	const matches =
+		typeof operation === 'string'
+			? (request: Request) => operationName(request) === operation
+			: operation;
 	let release!: () => void;
 	const released = new Promise<void>((resolve) => (release = resolve));
 	let markAnswered!: () => void;
@@ -812,7 +887,7 @@ async function holdResponse(
 	let matched = false;
 
 	await page.route('**/graphql', async (route) => {
-		if (matched || operationName(route.request()) !== operation) return route.fallback();
+		if (matched || !matches(route.request())) return route.fallback();
 		matched = true;
 		const response = error ? undefined : await route.fetch();
 		markAnswered();
